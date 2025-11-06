@@ -76,9 +76,13 @@ colnames(clean_kangaroo)
 ggplot(aes(x=species, color=species), data= clean_kangaroo)+
   geom_density()
 
-ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
+ggplot(aes(y=.rostral.width, x=species, color=sex ), data=clean_kangaroo, )+
   geom_boxplot()+
   facet_wrap(~sex)
+
+ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)) + 
+  geom_point() + 
+  theme_minimal()
 
 
 ```
@@ -87,7 +91,52 @@ ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
 # Model Building
 
 
+```{r}
+knn_spec <- nearest_neighbor() %>%
+  set_mode("classification") %>% 
+  set_engine(engine = "kknn") %>% 
+  set_args(neighbors = tune())
 
+variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+knn_workflow <- workflow() %>% 
+  add_recipe(variable_recipe) %>% 
+  add_model(knn_spec)
+
+set.seed(253)
+knn_models <- knn_workflow %>% 
+  tune_grid(
+    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
+    resamples = vfold_cv(clean_kangaroo, v = 10),
+    metrics = metric_set(accuracy, sensitivity, specificity)
+  )
+
+```
+
+```{r}
+knn_models %>% 
+  autoplot()
+```
+
+```{r}
+best_k <- knn_models %>% 
+  select_best()
+best_k
+```
+```{r}
+final_knn_model <- knn_workflow %>% 
+  finalize_workflow(parameters = best_k) %>% 
+  fit(data = clean_kangaroo)
+```
+
+Divide 80/20 for training and testing...
+```{r}
+final_knn_model %>% 
+  predict(new_data = ___)     
+```
 
 
 

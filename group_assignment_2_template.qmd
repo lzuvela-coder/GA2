@@ -49,10 +49,17 @@ The goal of this report is to build a predictive classification model that can d
 
 kangaroo_data <-read_csv("kangaroo.csv")
 
-# clean data, if necessary
 head(kangaroo_data)
 
-clean_kangaroo<-na.omit(kangaroo_data)
+clean_kangaroo<-kangaroo_data %>% 
+  select(-palate.width, -occipital.depth, -mandible.length)
+
+sum(is.na(kangaroo_data))
+
+sum(is.na(clean_kangaroo))
+
+clean_kangaroo<-na.omit(clean_kangaroo)
+colnames(clean_kangaroo)
 ```
 
 ```{r}
@@ -62,6 +69,12 @@ clean_kangaroo<-na.omit(kangaroo_data)
 
 # visualization
 
+ggplot(aes(x=species, color=species), data= clean_kangaroo)+
+  geom_density()
+
+ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
+  geom_boxplot()+
+  facet_wrap(~sex)
 
 
 

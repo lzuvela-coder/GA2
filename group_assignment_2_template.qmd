@@ -83,6 +83,29 @@ ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
 
 ```
 
+tree_spec <- decision_tree() %>%
+  set_mode("classification") %>%
+  set_engine("rpart") %>%
+  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
+
+tree_recipe <- recipe(species ~ ., data = kangaroo)
+
+tree_wf <- workflow() %>%
+  add_recipe(tree_recipe) %>%
+  add_model(tree_spec)
+
+
+set.seed(253)
+tree_models <- tree_wf %>%
+  tune_grid(
+    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
+    resamples = rs,
+    metrics = metric_set(accuracy))
+
+best_cost <- select_best(tree_models, metric = "accuracy")
+final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
+
+final_tree %>% extract_fit_engine() %>% rpart.plot()
 
 # Model Building
 

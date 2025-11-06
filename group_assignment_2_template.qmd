@@ -105,7 +105,46 @@ We used tidymodels to implement this model building process. See code below for 
 # Include all model building code in here.
 # Make sure to include comments explaining what your code does.
 
+# LASSO
+combo_kangaroo <- clean_kangaroo %>% 
+  mutate(group_species = case_when(
+    species == "giganteus" ~ 0, 
+    species %in% c("fuliginosus", "melanops") ~ 1)) %>%
+  select(-species)
 
+lasso_spec <- linear_reg() %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet") %>% 
+  set_args(mixture = 1, penalty = tune())
+
+kangaroo_recipe <- recipe(group_species ~ ., data = combo_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+lasso_workflow <- workflow() %>% 
+  add_recipe(kangaroo_recipe) %>% 
+  add_model(lasso_spec)
+
+set.seed(253)
+lasso_models <- lasso_workflow %>% 
+  tune_grid(
+    grid = grid_regular(penalty(range = c(-5, 1)), levels = 75),
+    resamples = vfold_cv(combo_kangaroo, v = 15),
+    metrics = metric_set(mae)
+  )
+
+parsimonious_penalty <- lasso_models %>% 
+  select_by_one_std_err(metric = "mae", desc(penalty))
+
+final_lasso_model <- lasso_workflow %>% 
+  finalize_workflow(parameters = parsimonious_penalty) %>% 
+  fit(data = combo_kangaroo)
+
+final_lasso_model %>% 
+  tidy()
+
+## vars = basilar.length, nasal.length, nasal.width, lacrymal.width, orbital.width, mandible.width, ramus.height
 ```
 
 </details>

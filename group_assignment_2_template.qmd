@@ -32,7 +32,11 @@ library(vip)
 tidymodels_prefer()
 
 # if your group needs any other packages, add them here
-
+# Load packages
+library(kknn)        # for KNN
+library(rpart.plot)  # for plotting trees
+library(class)       # for my plotting functions
+library(vip)
 ```
 
 
@@ -75,7 +79,6 @@ ggplot(aes(x=species, color=species), data= clean_kangaroo)+
 ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
   geom_boxplot()+
   facet_wrap(~sex)
-
 
 
 ```

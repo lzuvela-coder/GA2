@@ -1,0 +1,121 @@
+---
+title: "Your Title"
+subtitle: "STAT 253: Statistical Machine Learning"
+date: today
+author: "Your Names"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+    code-tools: true
+---
+
+
+
+<!-- Your report should follow the format specified in the Group Assignment 2 Instructions. Please review that document carefully! -->
+
+
+
+
+
+```{r}
+#| include: false
+# Load packages 
+library(tidyverse)
+library(tidymodels)
+library(rpart)
+library(rpart.plot)
+library(vip)
+
+# Resolves package conflicts by preferring tidymodels functions
+tidymodels_prefer()
+
+# if your group needs any other packages, add them here
+
+```
+
+
+# Research Goals
+
+
+
+# Data
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+kangaroo_data <-"~/Documents/STAT 253/Groupwork/kangaroo.csv"
+
+# clean data, if necessary
+
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# visualization
+
+
+
+
+```
+
+
+# Model Building
+
+
+
+
+
+
+# Implementation
+
+We used tidymodels to implement this model building process. See code below for full details.
+
+<details>
+<summary>View Code</summary>
+
+```{r}
+#| message: false
+#| warning: false
+
+# Include all model building code in here.
+# Make sure to include comments explaining what your code does.
+
+
+```
+
+</details>
+
+
+
+# Model Evaluation
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# visualization
+
+```
+
+
+
+# Contributions
+
+
+
+# Appendix
+
+```{r}
+#| eval: false
+# put code for any other models or visualizations that you considered here
+# use comments to explain what your code is doing
+```
+

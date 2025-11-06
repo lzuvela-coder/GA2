@@ -47,10 +47,12 @@ tidymodels_prefer()
 #| warning: false
 #| echo: false
 
-kangaroo_data <-"~/Documents/STAT 253/Groupwork/kangaroo.csv"
+kangaroo_data <-read_csv("kangaroo.csv")
 
 # clean data, if necessary
+head(kangaroo_data)
 
+clean_kangaroo<-na.omit(kangaroo_data)
 ```
 
 ```{r}

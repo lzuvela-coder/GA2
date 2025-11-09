@@ -111,6 +111,12 @@ final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
 final_tree %>% extract_fit_engine() %>% rpart.plot()
 ```
 
+tree_models %>%
+  collect_metrics() %>%
+  dplyr::filter(.metric == "accuracy") %>%
+  dplyr::arrange(desc(mean)) %>% 
+  dplyr::slice(1)
+
 ```{r}
 rf_spec <- rand_forest() %>%
   set_mode("classification") %>%

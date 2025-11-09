@@ -80,10 +80,11 @@ ggplot(aes(y=.rostral.width, x=species, color=sex ), data=clean_kangaroo, )+
   geom_boxplot()+
   facet_wrap(~sex)
 
-ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)) +
-  geom_point() +
+ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)) + 
+  geom_point() + 
   theme_minimal()
 
+```
 
 ```{r}
 tree_spec <- decision_tree() %>%
@@ -114,7 +115,7 @@ final_tree %>% extract_fit_engine() %>% rpart.plot()
 tree_models %>%
   collect_metrics() %>%
   dplyr::filter(.metric == "accuracy") %>%
-  dplyr::arrange(desc(mean)) %>%
+  dplyr::arrange(desc(mean)) %>% 
   dplyr::slice(1)
 
 ```{r}
@@ -142,6 +143,136 @@ age_forest %>% vip(geom = "point", num_features = 15)
 
 ```{r}
 knn_spec <- nearest_neighbor() %>%
+  set_mode("classification") %>% 
+  set_engine(engine = "kknn") %>% 
+  set_args(neighbors = tune())
+
+variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+knn_workflow <- workflow() %>% 
+  add_recipe(variable_recipe) %>% 
+  add_model(knn_spec)
+
+set.seed(253)
+knn_models <- knn_workflow %>% 
+  tune_grid(
+    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
+    resamples = vfold_cv(clean_kangaroo, v = 10),
+    metrics = metric_set(accuracy, sensitivity, specificity)
+  )
+
+```
+
+```{r}
+knn_models %>% 
+  autoplot()
+```
+
+```{r}
+best_k <- knn_models %>% 
+  select_best()
+best_k
+
+knn_models %>% 
+  collect_metrics() %>% 
+  filter(neighbors == best_K$neighbors)
+```
+```{r}
+final_knn_model <- knn_workflow %>% 
+  finalize_workflow(parameters = best_k) %>% 
+  fit(data = clean_kangaroo)
+```
+
+
+
+# Implementation
+
+We used tidymodels to implement this model building process. See code below for full details.
+
+<details>
+<summary>View Code</summary>
+
+```{r}
+#| message: false
+#| warning: false
+
+# Include all model building code in here.
+# Make sure to include comments explaining what your code does.
+
+# LASSO
+lasso_spec <- linear_reg() %>% 
+  set_mode("regression") %>% 
+  set_engine("glmnet") %>% 
+  set_args(mixture = 1, penalty = tune())
+
+kangaroo_recipe <- recipe(group_species ~ ., data = lasso_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+lasso_workflow <- workflow() %>% 
+  add_recipe(kangaroo_recipe) %>% 
+  add_model(lasso_spec)
+
+set.seed(253)
+lasso_models <- lasso_workflow %>% 
+  tune_grid(
+    grid = grid_regular(penalty(range = c(-5, 1)), levels = 75),
+    resamples = vfold_cv(lasso_kangaroo, v = 15),
+    metrics = metric_set(mae)
+  )
+
+parsimonious_penalty <- lasso_models %>% 
+  select_by_one_std_err(metric = "mae", desc(penalty))
+
+final_lasso_model <- lasso_workflow %>% 
+  finalize_workflow(parameters = parsimonious_penalty) %>% 
+  fit(data = lasso_kangaroo)
+
+final_lasso_model %>% 
+  tidy()
+
+## vars = basilar.length, nasal.length, nasal.width, lacrymal.width, orbital.width, mandible.width, ramus.height
+
+# logistic regression
+combo_kangaroo <- clean_kangaroo %>% 
+  mutate(group_species = case_when(
+    species == "giganteus" ~ "giganteus", 
+    species %in% c("fuliginosus", "melanops") ~ "fuliginosus")) %>%
+  select(-species)
+
+logistic_spec <- logistic_reg() %>%
+  set_mode("classification") %>% 
+  set_engine("glm")
+
+kangaroo_recipe <- recipe(group_species ~ basilar.length + nasal.length + nasal.width + lacrymal.width + orbital.width + mandible.width + ramus.height, data = combo_kangaroo)
+
+logistic_workflow <- workflow() %>% 
+  add_recipe(kangaroo_recipe) %>%
+  add_model(logistic_spec) 
+
+log_kangaroo <- logistic_workflow %>% 
+  fit(data = combo_kangaroo)
+
+set.seed(253)
+log_kangaroo_cv <- log_kangaroo %>% 
+  fit_resamples(
+    group_species ~ basilar.length + nasal.length + nasal.width + lacrymal.width + orbital.width + mandible.width + ramus.height,
+    resamples = vfold_cv(combo_kangaroo, v = 10), 
+    control = control_resamples(save_pred = TRUE, event_level = 'second'),
+    metrics = metric_set(accuracy, sensitivity, specificity)
+  )
+
+log_kangaroo_cv %>% 
+  collect_metrics()
+
+
+#KNN
+
+knn_spec <- nearest_neighbor() %>%
   set_mode("classification") %>%
   set_engine(engine = "kknn") %>%
   set_args(neighbors = tune())
@@ -163,14 +294,9 @@ knn_models <- knn_workflow %>%
     metrics = metric_set(accuracy, sensitivity, specificity)
   )
 
-```
-
-```{r}
 knn_models %>%
   autoplot()
-```
 
-```{r}
 best_k <- knn_models %>%
   select_best()
 best_k
@@ -178,95 +304,11 @@ best_k
 knn_models %>%
   collect_metrics() %>%
   filter(neighbors == best_K$neighbors)
-```
-```{r}
+
 final_knn_model <- knn_workflow %>%
   finalize_workflow(parameters = best_k) %>%
   fit(data = clean_kangaroo)
-```
 
-
-
-# Implementation
-
-We used tidymodels to implement this model building process. See code below for full details.
-
-<details>
-<summary>View Code</summary>
-
-```{r}
-#| message: false
-#| warning: false
-
-# Include all model building code in here.
-# Make sure to include comments explaining what your code does.
-
-# LASSO
-lasso_spec <- linear_reg() %>%
-  set_mode("regression") %>%
-  set_engine("glmnet") %>%
-  set_args(mixture = 1, penalty = tune())
-
-kangaroo_recipe <- recipe(group_species ~ ., data = lasso_kangaroo) %>%
-  step_nzv(all_predictors()) %>%
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_numeric_predictors())
-
-lasso_workflow <- workflow() %>%
-  add_recipe(kangaroo_recipe) %>%
-  add_model(lasso_spec)
-
-set.seed(253)
-lasso_models <- lasso_workflow %>%
-  tune_grid(
-    grid = grid_regular(penalty(range = c(-5, 1)), levels = 75),
-    resamples = vfold_cv(lasso_kangaroo, v = 15),
-    metrics = metric_set(mae)
-  )
-
-parsimonious_penalty <- lasso_models %>%
-  select_by_one_std_err(metric = "mae", desc(penalty))
-
-final_lasso_model <- lasso_workflow %>%
-  finalize_workflow(parameters = parsimonious_penalty) %>%
-  fit(data = lasso_kangaroo)
-
-final_lasso_model %>%
-  tidy()
-
-## vars = basilar.length, nasal.length, nasal.width, lacrymal.width, orbital.width, mandible.width, ramus.height
-
-# logistic regression
-combo_kangaroo <- clean_kangaroo %>%
-  mutate(group_species = case_when(
-    species == "giganteus" ~ "giganteus",
-    species %in% c("fuliginosus", "melanops") ~ "fuliginosus")) %>%
-  select(-species)
-
-logistic_spec <- logistic_reg() %>%
-  set_mode("classification") %>%
-  set_engine("glm")
-
-kangaroo_recipe <- recipe(group_species ~ basilar.length + nasal.length + nasal.width + lacrymal.width + orbital.width + mandible.width + ramus.height, data = combo_kangaroo)
-
-logistic_workflow <- workflow() %>%
-  add_recipe(kangaroo_recipe) %>%
-  add_model(logistic_spec)
-
-log_kangaroo <- logistic_workflow %>%
-  fit(data = combo_kangaroo)
-
-set.seed(253)
-log_kangaroo_cv <- log_kangaroo %>%
-  fit_resamples(
-    group_species ~ basilar.length + nasal.length + nasal.width + lacrymal.width + orbital.width + mandible.width + ramus.height,
-    resamples = vfold_cv(combo_kangaroo, v = 10),
-    control = control_resamples(save_pred = TRUE, event_level = 'second'),
-    metrics = metric_set(accuracy, sensitivity, specificity)
-  )
-
-log_kangaroo_cv %>%
-  collect_metrics()
 ```
 
 </details>

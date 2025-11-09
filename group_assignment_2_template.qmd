@@ -86,58 +86,6 @@ ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)
 
 ```
 
-```{r}
-tree_spec <- decision_tree() %>%
-  set_mode("classification") %>%
-  set_engine("rpart") %>%
-  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
-
-tree_recipe <- recipe(species ~ ., data = kangaroo)
-
-tree_wf <- workflow() %>%
-  add_recipe(tree_recipe) %>%
-  add_model(tree_spec)
-
-
-set.seed(253)
-tree_models <- tree_wf %>%
-  tune_grid(
-    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
-    resamples = rs,
-    metrics = metric_set(accuracy))
-
-best_cost <- select_best(tree_models, metric = "accuracy")
-final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
-
-final_tree %>% extract_fit_engine() %>% rpart.plot()
-```
-
-tree_models %>%
-  collect_metrics() %>%
-  dplyr::filter(.metric == "accuracy") %>%
-  dplyr::arrange(desc(mean)) %>% 
-  dplyr::slice(1)
-
-```{r}
-rf_spec <- rand_forest() %>%
-  set_mode("classification") %>%
-  set_engine("ranger") %>%
-  set_args(
-    mtry = NULL,
-    trees = 500,
-    min_n = 2,
-    probability = FALSE,
-    importance = "impurity")
-
-age_forest <- rf_spec %>% fit(species ~ ., data = kangaroo)
-
-imp_vec <- age_forest %>% extract_fit_engine() %>%
-  pluck("variable.importance") %>% sort(decreasing = TRUE)
-imp_vec
-
-age_forest %>% vip(geom = "point", num_features = 15)
-```
-
 # Model Building
 
 
@@ -459,4 +407,58 @@ cv_results %>%
 cv_results %>%
   collect_predictions() %>%
   conf_mat(truth = species, estimate = .pred_class)
+```
+
+# Random Tree and Forest
+
+```{r}
+tree_spec <- decision_tree() %>%
+  set_mode("classification") %>%
+  set_engine("rpart") %>%
+  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
+
+tree_recipe <- recipe(species ~ ., data = kangaroo)
+
+tree_wf <- workflow() %>%
+  add_recipe(tree_recipe) %>%
+  add_model(tree_spec)
+
+
+set.seed(253)
+tree_models <- tree_wf %>%
+  tune_grid(
+    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
+    resamples = rs,
+    metrics = metric_set(accuracy))
+
+best_cost <- select_best(tree_models, metric = "accuracy")
+final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
+
+final_tree %>% extract_fit_engine() %>% rpart.plot()
+```
+
+tree_models %>%
+  collect_metrics() %>%
+  dplyr::filter(.metric == "accuracy") %>%
+  dplyr::arrange(desc(mean)) %>% 
+  dplyr::slice(1)
+
+```{r}
+rf_spec <- rand_forest() %>%
+  set_mode("classification") %>%
+  set_engine("ranger") %>%
+  set_args(
+    mtry = NULL,
+    trees = 500,
+    min_n = 2,
+    probability = FALSE,
+    importance = "impurity")
+
+age_forest <- rf_spec %>% fit(species ~ ., data = kangaroo)
+
+imp_vec <- age_forest %>% extract_fit_engine() %>%
+  pluck("variable.importance") %>% sort(decreasing = TRUE)
+imp_vec
+
+age_forest %>% vip(geom = "point", num_features = 15)
 ```

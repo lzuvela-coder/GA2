@@ -84,6 +84,7 @@ ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)
   geom_point() + 
   theme_minimal()
 
+```
 
 ```{r}
 tree_spec <- decision_tree() %>%
@@ -139,51 +140,6 @@ age_forest %>% vip(geom = "point", num_features = 15)
 
 # Model Building
 
-
-```{r}
-knn_spec <- nearest_neighbor() %>%
-  set_mode("classification") %>% 
-  set_engine(engine = "kknn") %>% 
-  set_args(neighbors = tune())
-
-variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
-  step_nzv(all_predictors()) %>% 
-  step_dummy(all_nominal_predictors()) %>% 
-  step_normalize(all_numeric_predictors())
-
-knn_workflow <- workflow() %>% 
-  add_recipe(variable_recipe) %>% 
-  add_model(knn_spec)
-
-set.seed(253)
-knn_models <- knn_workflow %>% 
-  tune_grid(
-    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
-    resamples = vfold_cv(clean_kangaroo, v = 10),
-    metrics = metric_set(accuracy, sensitivity, specificity)
-  )
-
-```
-
-```{r}
-knn_models %>% 
-  autoplot()
-```
-
-```{r}
-best_k <- knn_models %>% 
-  select_best()
-best_k
-
-knn_models %>% 
-  collect_metrics() %>% 
-  filter(neighbors == best_K$neighbors)
-```
-```{r}
-final_knn_model <- knn_workflow %>% 
-  finalize_workflow(parameters = best_k) %>% 
-  fit(data = clean_kangaroo)
-```
 
 
 
@@ -267,6 +223,47 @@ log_kangaroo_cv <- log_kangaroo %>%
 
 log_kangaroo_cv %>% 
   collect_metrics()
+
+
+#KNN
+
+knn_spec <- nearest_neighbor() %>%
+  set_mode("classification") %>% 
+  set_engine(engine = "kknn") %>% 
+  set_args(neighbors = tune())
+
+variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+knn_workflow <- workflow() %>% 
+  add_recipe(variable_recipe) %>% 
+  add_model(knn_spec)
+
+set.seed(253)
+knn_models <- knn_workflow %>% 
+  tune_grid(
+    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
+    resamples = vfold_cv(clean_kangaroo, v = 10),
+    metrics = metric_set(accuracy, sensitivity, specificity)
+  )
+
+knn_models %>% 
+  autoplot()
+
+best_k <- knn_models %>% 
+  select_best()
+best_k
+
+knn_models %>% 
+  collect_metrics() %>% 
+  filter(neighbors == best_K$neighbors)
+
+final_knn_model <- knn_workflow %>% 
+  finalize_workflow(parameters = best_k) %>% 
+  fit(data = clean_kangaroo)
+
 ```
 
 </details>

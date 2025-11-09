@@ -21,7 +21,7 @@ format:
 
 ```{r}
 #| include: false
-# Load packages 
+
 library(tidyverse)
 library(tidymodels)
 library(rpart)
@@ -73,18 +73,16 @@ colnames(clean_kangaroo)
 
 # visualization
 
-ggplot(aes(x=species, color=species), data= clean_kangaroo)+
-  geom_density()
+ggplot(aes(x=species, fill=species), data= kangaroo_data)+
+  geom_density(alpha=0.5)
 
-ggplot(aes(y=mandible.length, x=species, color=sex ), data=clean_kangaroo, )+
-  geom_boxplot()+
-  facet_wrap(~sex)
 
 
 ```
 
 
 # Model Building
+
 
 
 
@@ -137,3 +135,123 @@ We used tidymodels to implement this model building process. See code below for 
 # use comments to explain what your code is doing
 ```
 
+## logistic- William
+```{r}
+kangaroo_log_df<- clean_kangaroo
+
+kangaroo_log_df$species <- ifelse(kangaroo_log_df$species %in% c("melanops", "fuliginosus"),
+                                 "fuliginosus", kangaroo_log_df$species)
+
+kangaroo_log_df <- kangaroo_log_df %>%
+  mutate(species = relevel(as.factor(species), ref = "giganteus"))
+
+
+kangaroo_recipe <- recipe(species ~ basilar.length + nasal.width + zygomatic.width + mandible.depth,
+                          data = kangaroo_log_df) %>%
+  step_normalize(all_predictors())
+
+
+log_model <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+kangaroo_wf <- workflow() %>%
+  add_model(log_model) %>%
+  add_recipe(kangaroo_recipe)
+
+kangaroo_fit <- fit(kangaroo_wf, data = kangaroo_log_df)
+
+# Get a summary table
+kangaroo_fit %>% 
+  tidy()
+
+kangaroo_fit %>% 
+  tidy() %>%
+  mutate(
+    OR = exp(estimate),
+    OR.conf.low = exp(estimate - 1.96*std.error),
+    OR.conf.high = exp(estimate + 1.96*std.error)
+  )
+
+
+
+```
+
+
+```{r}
+kangaroo_fit %>% 
+  augment(new_data = kangaroo_log_df)
+```
+```{r}
+kangaroo_predictions <- kangaroo_fit %>% 
+  augment(new_data = kangaroo_log_df)
+
+accuracy <- kangaroo_predictions %>%
+  accuracy(truth = species, estimate = .pred_class)
+
+accuracy
+
+conf_mat <- kangaroo_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class)
+
+conf_mat
+
+classification_metrics <- kangaroo_predictions %>%
+  metrics(truth = species, estimate = .pred_class)
+
+classification_metrics
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Load yardstick for metrics (if not already loaded)
+library(yardstick)
+
+# Set seed for reproducibility
+set.seed(320)
+
+# Create cross-validation folds (10-fold CV)
+kangaroo_cv <- vfold_cv(kangaroo_log_df, v = 10)
+
+# Fit the model using cross-validation
+cv_results <- kangaroo_wf %>%
+  fit_resamples(
+    resamples = kangaroo_cv,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+# View cross-validation metrics (default: accuracy and roc_auc)
+cv_results %>%
+  collect_metrics()
+
+# Get detailed metrics
+cv_metrics_detailed <- cv_results %>%
+  collect_metrics() %>%
+  select(.metric, mean, std_err, n)
+
+cv_metrics_detailed
+
+# Visualize accuracy across folds
+cv_results %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy") %>%
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point(size = 3, color = "blue") +
+  geom_hline(yintercept = mean(collect_metrics(cv_results, summarize = FALSE) %>% 
+                                  filter(.metric == "accuracy") %>% 
+                                  pull(.estimate)), 
+             linetype = "dashed", color = "red") +
+  labs(title = "Accuracy Across 10-Fold Cross-Validation",
+       x = "Fold",
+       y = "Accuracy") +
+  theme_minimal() +
+  coord_flip()
+
+# Get confusion matrix from CV predictions
+cv_results %>%
+  collect_predictions() %>%
+  conf_mat(truth = species, estimate = .pred_class)
+```

@@ -111,6 +111,26 @@ final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
 final_tree %>% extract_fit_engine() %>% rpart.plot()
 ```
 
+```{r}
+rf_spec <- rand_forest() %>%
+  set_mode("classification") %>%
+  set_engine("ranger") %>%
+  set_args(
+    mtry = NULL,
+    trees = 500,
+    min_n = 2,
+    probability = FALSE,
+    importance = "impurity")
+
+age_forest <- rf_spec %>% fit(species ~ ., data = kangaroo)
+
+imp_vec <- age_forest %>% extract_fit_engine() %>%
+  pluck("variable.importance") %>% sort(decreasing = TRUE)
+imp_vec
+
+age_forest %>% vip(geom = "point", num_features = 15)
+```
+
 # Model Building
 
 

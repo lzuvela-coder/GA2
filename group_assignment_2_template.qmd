@@ -85,8 +85,7 @@ ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)
   theme_minimal()
 
 
-```
-
+```{r}
 tree_spec <- decision_tree() %>%
   set_mode("classification") %>%
   set_engine("rpart") %>%
@@ -110,6 +109,7 @@ best_cost <- select_best(tree_models, metric = "accuracy")
 final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
 
 final_tree %>% extract_fit_engine() %>% rpart.plot()
+```
 
 # Model Building
 

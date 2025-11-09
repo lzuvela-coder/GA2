@@ -42,7 +42,7 @@ library(vip)
 
 # Research Goals
 
-The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and Paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
+The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
 
 # Data
 
@@ -96,60 +96,53 @@ ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)
 
 ```
 
-```{r}
-tree_spec <- decision_tree() %>%
-  set_mode("classification") %>%
-  set_engine("rpart") %>%
-  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
-
-tree_recipe <- recipe(species ~ ., data = kangaroo)
-
-tree_wf <- workflow() %>%
-  add_recipe(tree_recipe) %>%
-  add_model(tree_spec)
-
-
-set.seed(253)
-tree_models <- tree_wf %>%
-  tune_grid(
-    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
-    resamples = rs,
-    metrics = metric_set(accuracy))
-
-best_cost <- select_best(tree_models, metric = "accuracy")
-final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
-
-final_tree %>% extract_fit_engine() %>% rpart.plot()
-```
-
-tree_models %>%
-  collect_metrics() %>%
-  dplyr::filter(.metric == "accuracy") %>%
-  dplyr::arrange(desc(mean)) %>% 
-  dplyr::slice(1)
-
-```{r}
-rf_spec <- rand_forest() %>%
-  set_mode("classification") %>%
-  set_engine("ranger") %>%
-  set_args(
-    mtry = NULL,
-    trees = 500,
-    min_n = 2,
-    probability = FALSE,
-    importance = "impurity")
-
-age_forest <- rf_spec %>% fit(species ~ ., data = kangaroo)
-
-imp_vec <- age_forest %>% extract_fit_engine() %>%
-  pluck("variable.importance") %>% sort(decreasing = TRUE)
-imp_vec
-
-age_forest %>% vip(geom = "point", num_features = 15)
-```
-
 # Model Building
 
+
+```{r}
+knn_spec <- nearest_neighbor() %>%
+  set_mode("classification") %>% 
+  set_engine(engine = "kknn") %>% 
+  set_args(neighbors = tune())
+
+variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
+  step_nzv(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>% 
+  step_normalize(all_numeric_predictors())
+
+knn_workflow <- workflow() %>% 
+  add_recipe(variable_recipe) %>% 
+  add_model(knn_spec)
+
+set.seed(253)
+knn_models <- knn_workflow %>% 
+  tune_grid(
+    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
+    resamples = vfold_cv(clean_kangaroo, v = 10),
+    metrics = metric_set(accuracy, sensitivity, specificity)
+  )
+
+```
+
+```{r}
+knn_models %>% 
+  autoplot()
+```
+
+```{r}
+best_k <- knn_models %>% 
+  select_best()
+best_k
+
+knn_models %>% 
+  collect_metrics() %>% 
+  filter(neighbors == best_K$neighbors)
+```
+```{r}
+final_knn_model <- knn_workflow %>% 
+  finalize_workflow(parameters = best_k) %>% 
+  fit(data = clean_kangaroo)
+```
 
 
 
@@ -238,40 +231,40 @@ log_kangaroo_cv %>%
 #KNN
 
 knn_spec <- nearest_neighbor() %>%
-  set_mode("classification") %>% 
-  set_engine(engine = "kknn") %>% 
+  set_mode("classification") %>%
+  set_engine(engine = "kknn") %>%
   set_args(neighbors = tune())
 
-variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>% 
-  step_nzv(all_predictors()) %>% 
-  step_dummy(all_nominal_predictors()) %>% 
+variable_recipe <- recipe(species ~ basilar.length, nasal.length, nasal.width, lacrimal.width, orbital.width, mandible.width, ramus.height, data = clean_kangaroo) %>%
+  step_nzv(all_predictors()) %>%
+  step_dummy(all_nominal_predictors()) %>%
   step_normalize(all_numeric_predictors())
 
-knn_workflow <- workflow() %>% 
-  add_recipe(variable_recipe) %>% 
+knn_workflow <- workflow() %>%
+  add_recipe(variable_recipe) %>%
   add_model(knn_spec)
 
 set.seed(253)
-knn_models <- knn_workflow %>% 
+knn_models <- knn_workflow %>%
   tune_grid(
     grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
     resamples = vfold_cv(clean_kangaroo, v = 10),
     metrics = metric_set(accuracy, sensitivity, specificity)
   )
 
-knn_models %>% 
+knn_models %>%
   autoplot()
 
-best_k <- knn_models %>% 
+best_k <- knn_models %>%
   select_best()
 best_k
 
-knn_models %>% 
-  collect_metrics() %>% 
+knn_models %>%
+  collect_metrics() %>%
   filter(neighbors == best_K$neighbors)
 
-final_knn_model <- knn_workflow %>% 
-  finalize_workflow(parameters = best_k) %>% 
+final_knn_model <- knn_workflow %>%
+  finalize_workflow(parameters = best_k) %>%
   fit(data = clean_kangaroo)
 
 ```
@@ -305,3 +298,177 @@ final_knn_model <- knn_workflow %>%
 # use comments to explain what your code is doing
 ```
 
+## logistic- William
+```{r}
+kangaroo_log_df<- clean_kangaroo
+
+kangaroo_log_df$species <- ifelse(kangaroo_log_df$species %in% c("melanops", "fuliginosus"),
+                                 "fuliginosus", kangaroo_log_df$species)
+
+kangaroo_log_df <- kangaroo_log_df %>%
+  mutate(species = relevel(as.factor(species), ref = "giganteus"))
+
+
+kangaroo_recipe <- recipe(species ~ basilar.length + nasal.width + zygomatic.width + mandible.depth,
+                          data = kangaroo_log_df) %>%
+  step_normalize(all_predictors())
+
+
+log_model <- logistic_reg() %>%
+  set_engine("glm") %>%
+  set_mode("classification")
+
+kangaroo_wf <- workflow() %>%
+  add_model(log_model) %>%
+  add_recipe(kangaroo_recipe)
+
+kangaroo_fit <- fit(kangaroo_wf, data = kangaroo_log_df)
+
+# Get a summary table
+kangaroo_fit %>%
+  tidy()
+
+kangaroo_fit %>%
+  tidy() %>%
+  mutate(
+    OR = exp(estimate),
+    OR.conf.low = exp(estimate - 1.96*std.error),
+    OR.conf.high = exp(estimate + 1.96*std.error)
+  )
+
+
+
+```
+
+
+```{r}
+kangaroo_fit %>%
+  augment(new_data = kangaroo_log_df)
+```
+```{r}
+kangaroo_predictions <- kangaroo_fit %>%
+  augment(new_data = kangaroo_log_df)
+
+accuracy <- kangaroo_predictions %>%
+  accuracy(truth = species, estimate = .pred_class)
+
+accuracy
+
+conf_mat <- kangaroo_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class)
+
+conf_mat
+
+classification_metrics <- kangaroo_predictions %>%
+  metrics(truth = species, estimate = .pred_class)
+
+classification_metrics
+```
+
+```{r}
+#| message: false
+#| warning: false
+#| echo: false
+
+# Load yardstick for metrics (if not already loaded)
+library(yardstick)
+
+# Set seed for reproducibility
+set.seed(320)
+
+# Create cross-validation folds (10-fold CV)
+kangaroo_cv <- vfold_cv(kangaroo_log_df, v = 10)
+
+# Fit the model using cross-validation
+cv_results <- kangaroo_wf %>%
+  fit_resamples(
+    resamples = kangaroo_cv,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+# View cross-validation metrics (default: accuracy and roc_auc)
+cv_results %>%
+  collect_metrics()
+
+# Get detailed metrics
+cv_metrics_detailed <- cv_results %>%
+  collect_metrics() %>%
+  select(.metric, mean, std_err, n)
+
+cv_metrics_detailed
+
+# Visualize accuracy across folds
+cv_results %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy") %>%
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point(size = 3, color = "blue") +
+  geom_hline(yintercept = mean(collect_metrics(cv_results, summarize = FALSE) %>%
+                                  filter(.metric == "accuracy") %>%
+                                  pull(.estimate)),
+             linetype = "dashed", color = "red") +
+  labs(title = "Accuracy Across 10-Fold Cross-Validation",
+       x = "Fold",
+       y = "Accuracy") +
+  theme_minimal() +
+  coord_flip()
+
+# Get confusion matrix from CV predictions
+cv_results %>%
+  collect_predictions() %>%
+  conf_mat(truth = species, estimate = .pred_class)
+```
+
+# Random Tree and Forest
+
+```{r}
+tree_spec <- decision_tree() %>%
+  set_mode("classification") %>%
+  set_engine("rpart") %>%
+  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
+
+tree_recipe <- recipe(species ~ ., data = kangaroo)
+
+tree_wf <- workflow() %>%
+  add_recipe(tree_recipe) %>%
+  add_model(tree_spec)
+
+
+set.seed(253)
+tree_models <- tree_wf %>%
+  tune_grid(
+    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
+    resamples = rs,
+    metrics = metric_set(accuracy))
+
+best_cost <- select_best(tree_models, metric = "accuracy")
+final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
+
+final_tree %>% extract_fit_engine() %>% rpart.plot()
+```
+
+tree_models %>%
+  collect_metrics() %>%
+  dplyr::filter(.metric == "accuracy") %>%
+  dplyr::arrange(desc(mean)) %>% 
+  dplyr::slice(1)
+
+```{r}
+rf_spec <- rand_forest() %>%
+  set_mode("classification") %>%
+  set_engine("ranger") %>%
+  set_args(
+    mtry = NULL,
+    trees = 500,
+    min_n = 2,
+    probability = FALSE,
+    importance = "impurity")
+
+age_forest <- rf_spec %>% fit(species ~ ., data = kangaroo)
+
+imp_vec <- age_forest %>% extract_fit_engine() %>%
+  pluck("variable.importance") %>% sort(decreasing = TRUE)
+imp_vec
+
+age_forest %>% vip(geom = "point", num_features = 15)
+```

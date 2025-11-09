@@ -46,6 +46,13 @@ The goal of this report is to build a predictive classification model that can d
 
 # Data
 
+The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others. 
+
+
+
+
+
+
 ```{r}
 #| message: false
 #| warning: false
@@ -54,6 +61,8 @@ The goal of this report is to build a predictive classification model that can d
 kangaroo_data <-read_csv("kangaroo.csv")
 
 head(kangaroo_data)
+colnames(kangaroo_data)
+row_number(kangaroo_data)
 
 clean_kangaroo<-kangaroo_data %>% 
   select(-palate.width, -occipital.depth, -mandible.length)
@@ -64,6 +73,7 @@ sum(is.na(clean_kangaroo))
 
 clean_kangaroo<-na.omit(clean_kangaroo)
 colnames(clean_kangaroo)
+
 ```
 
 ```{r}

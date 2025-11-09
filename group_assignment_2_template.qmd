@@ -168,17 +168,15 @@ knn_models %>%
 best_k <- knn_models %>% 
   select_best()
 best_k
+
+knn_models %>% 
+  collect_metrics() %>% 
+  filter(neighbors == best_K$neighbors)
 ```
 ```{r}
 final_knn_model <- knn_workflow %>% 
   finalize_workflow(parameters = best_k) %>% 
   fit(data = clean_kangaroo)
-```
-
-Divide 80/20 for training and testing...
-```{r}
-final_knn_model %>% 
-  predict(new_data = ___)     
 ```
 
 

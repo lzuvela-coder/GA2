@@ -80,7 +80,7 @@ sum(is.na(kangaroo_data))
 
 sum(is.na(clean_kangaroo))
 
-clean_kangaroo<-na.omit(clean_kangaroo)
+clean_kangaroo<-kangaroo_data
 colnames(clean_kangaroo)
 
 ```

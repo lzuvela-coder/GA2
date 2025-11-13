@@ -42,9 +42,16 @@ library(vip)
 
 # Research Goals
 
-The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and Paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
+The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
 
 # Data
+
+The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others. 
+
+
+
+
+
 
 ```{r}
 #| message: false
@@ -52,9 +59,6 @@ The goal of this report is to build a predictive classification model that can d
 #| echo: false
 
 kangaroo_data <-read_csv("kangaroo.csv")
-
-clean_kangaroo<-kangaroo_data %>% 
-  select(-palate.width, -occipital.depth, -mandible.length)
 
 # Species distribution
  kangaroo_data%>% 
@@ -78,6 +82,7 @@ sum(is.na(clean_kangaroo))
 
 clean_kangaroo<-na.omit(clean_kangaroo)
 colnames(clean_kangaroo)
+
 ```
 
 ```{r}

@@ -336,7 +336,147 @@ rf_cv %>% collect_metrics()
 #| warning: false
 #| echo: false
 
-# visualization
+# Model Evaluation
+
+## KNN Model (3 Species Classification)
+
+### Cross-Validation Metrics
+set.seed(253)
+knn_cv <- knn_workflow %>%
+  finalize_workflow(best_k) %>%  # Finalize with best k first
+  fit_resamples(
+    resamples = vfold_cv(knn_select, v = 10),
+    control = control_resamples(save_pred = TRUE),
+    metrics = metric_set(accuracy)
+  )
+
+knn_cv_metrics <- knn_cv %>% collect_metrics()
+knn_cv_metrics %>%
+  knitr::kable(digits = 3, caption = "KNN Cross-Validation Metrics (10-fold CV)")
+
+### Confusion Matrix
+# Convert species to factor
+knn_select_factor <- knn_select %>%
+  mutate(species = as.factor(species))
+
+knn_predictions <- final_knn_model %>%
+  augment(new_data = knn_select_factor)
+
+knn_cm <- knn_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class)
+
+knn_cm
+
+# Visualize confusion matrix
+knn_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class) %>%
+  autoplot(type = "heatmap") +
+  labs(title = "KNN Confusion Matrix",
+       subtitle = "All 3 Species Classification (k=5)") +
+  theme_minimal()
+
+### Visualize Accuracy Across CV Folds
+knn_cv %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy") %>%
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point(size = 3, color = "steelblue") +
+  geom_hline(yintercept = mean(knn_cv %>%
+                                  collect_metrics(summarize = FALSE) %>%
+                                  filter(.metric == "accuracy") %>%
+                                  pull(.estimate)),
+             linetype = "dashed", color = "red") +
+  labs(title = "KNN Accuracy Across 10-Fold Cross-Validation",
+       subtitle = "3 Species Classification (k=5)",
+       x = "Fold",
+       y = "Accuracy") +
+  theme_minimal() +
+  coord_flip() +
+  ylim(0.5, 0.85)
+
+## Logistic Regression Model (Binary Classification)
+
+### Cross-Validation Metrics
+log_kangaroo_cv %>%
+  collect_metrics() %>%
+  knitr::kable(digits = 3, caption = "Logistic Regression Cross-Validation Metrics (10-fold CV)")
+
+### Confusion Matrix
+# Convert to factor
+lasso_select_factor <- lasso_select %>%
+  mutate(group_species = as.factor(group_species))
+
+log_predictions <- log_kangaroo %>%
+  augment(new_data = lasso_select_factor)
+
+log_cm <- log_predictions %>%
+  conf_mat(truth = group_species, estimate = .pred_class)
+
+log_cm
+
+# Visualize confusion matrix
+log_predictions %>%
+  conf_mat(truth = group_species, estimate = .pred_class) %>%
+  autoplot(type = "heatmap") +
+  labs(title = "Logistic Regression Confusion Matrix",
+       subtitle = "Binary Classification (Giganteus vs Fuliginosus)") +
+  theme_minimal()
+
+### Visualize Accuracy Across CV Folds
+log_kangaroo_cv %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy") %>%
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point(size = 3, color = "darkgreen") +
+  geom_hline(yintercept = mean(log_kangaroo_cv %>%
+                                  collect_metrics(summarize = FALSE) %>%
+                                  filter(.metric == "accuracy") %>%
+                                  pull(.estimate)),
+             linetype = "dashed", color = "red") +
+  labs(title = "Logistic Regression Accuracy Across 10-Fold Cross-Validation",
+       subtitle = "Binary Classification",
+       x = "Fold",
+       y = "Accuracy") +
+  theme_minimal() +
+  coord_flip() +
+  ylim(0.6, 1.0)
+
+## Model Comparison
+
+### Summary Table
+model_comparison <- tibble(
+  Model = c("KNN (k=5)", "Logistic Regression"),
+  Classification = c("3 Species", "Binary (2 Groups)"),
+  `CV Accuracy` = c(
+    knn_cv_metrics %>% filter(.metric == "accuracy") %>% pull(mean),
+    log_kangaroo_cv %>% collect_metrics() %>% filter(.metric == "accuracy") %>% pull(mean)
+  ),
+  `Std Error` = c(
+    knn_cv_metrics %>% filter(.metric == "accuracy") %>% pull(std_err),
+    log_kangaroo_cv %>% collect_metrics() %>% filter(.metric == "accuracy") %>% pull(std_err)
+  )
+)
+
+model_comparison %>%
+  knitr::kable(digits = 3, caption = "Model Performance Comparison")
+
+### Visualization of Model Comparison
+model_comparison %>%
+  ggplot(aes(x = Model, y = `CV Accuracy`, fill = Model)) +
+  geom_col() +
+  geom_errorbar(aes(ymin = `CV Accuracy` - `Std Error`, 
+                    ymax = `CV Accuracy` + `Std Error`),
+                width = 0.2) +
+  geom_text(aes(label = scales::percent(`CV Accuracy`, accuracy = 0.1)),
+            vjust = -0.5, size = 4) +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  labs(title = "Model Accuracy Comparison",
+       subtitle = "10-Fold Cross-Validation Results",
+       y = "Accuracy",
+       x = "") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  scale_fill_manual(values = c("steelblue", "darkgreen"))
 
 ```
 

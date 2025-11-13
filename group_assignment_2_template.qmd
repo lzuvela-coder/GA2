@@ -53,11 +53,25 @@ The goal of this report is to build a predictive classification model that can d
 
 kangaroo_data <-read_csv("kangaroo.csv")
 
-head(kangaroo_data)
-
 clean_kangaroo<-kangaroo_data %>% 
   select(-palate.width, -occipital.depth, -mandible.length)
 
+# Species distribution
+ kangaroo_data%>% 
+  count(species) %>%
+  knitr::kable(caption = "Species Distribution")
+
+# Check for missing values
+missing_summary <- kangaroo_data %>% 
+  summarise(across(everything(), ~sum(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "Variable", values_to = "Missing") %>%
+  filter(Missing > 0) %>%
+  arrange(desc(Missing))
+
+if(nrow(missing_summary) > 0) {
+  missing_summary %>%
+    knitr::kable(caption = "Missing Values Summary")
+}
 sum(is.na(kangaroo_data))
 
 sum(is.na(clean_kangaroo))
@@ -84,6 +98,26 @@ ggplot(clean_kangaroo, aes(y = .rostral.width, x = nasal.width, color = species)
   geom_point() + 
   theme_minimal()
 
+```
+
+
+```{r}
+# Compare key measurements across species
+key_features <- c("basilar.length", "occipitonasal.length", "palate.length",
+                  "zygomatic.width", "mandible.length", "nasal.length")
+
+kangaroo_data %>%
+  select(species, all_of(key_features)) %>%
+  pivot_longer(cols = -species, names_to = "measurement", values_to = "value") %>%
+  ggplot(aes(x = species, y = value, fill = species)) +
+  geom_boxplot() +
+  facet_wrap(~ measurement, scales = "free_y", ncol = 3) +
+  labs(title = "Key Skull Measurements by Species",
+       x = "Species", 
+       y = "Measurement (mm)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "bottom")
 ```
 
 # Model Building
@@ -128,6 +162,7 @@ knn_models %>%
   collect_metrics() %>% 
   filter(neighbors == best_K$neighbors)
 ```
+
 ```{r}
 final_knn_model <- knn_workflow %>% 
   finalize_workflow(parameters = best_k) %>% 
@@ -437,11 +472,14 @@ final_tree <- tree_wf %>% finalize_workflow(best_cost) %>% fit(kangaroo)
 final_tree %>% extract_fit_engine() %>% rpart.plot()
 ```
 
+```{r}
 tree_models %>%
   collect_metrics() %>%
   dplyr::filter(.metric == "accuracy") %>%
   dplyr::arrange(desc(mean)) %>% 
   dplyr::slice(1)
+```
+
 
 ```{r}
 rf_spec <- rand_forest() %>%

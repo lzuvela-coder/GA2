@@ -191,7 +191,7 @@ log_kangaroo_cv <- logistic_workflow %>%
   fit_resamples(
     resamples = vfold_cv(lasso_select, v = 10),  
     control = control_resamples(save_pred = TRUE, event_level = 'second'),
-    metrics = metric_set(accuracy, sens, spec)  
+    metrics = metric_set(accuracy, sens, spec, roc_auc)  
   )
 
 # display cross-validated performance metrics
@@ -259,7 +259,24 @@ log_kangaroo_cv %>%
   coord_flip() +
   ylim(0.6, 1.0)
 
+# collect predictions from cross-validation with probabilities
+log_predictions_cv <- log_kangaroo_cv %>%
+  collect_predictions()
 
+# create roc curve using probability predictions
+log_predictions_cv %>%
+  roc_curve(truth = group_species, .pred_Fuliginosus) %>%
+  autoplot() +
+  labs(
+    title = "ROC Curve for Logistic Regression Model",
+    subtitle = "Binary Classification (Giganteus vs Fuliginosus)"
+  ) +
+  theme_minimal()
+
+# calculate and display AUC
+log_predictions_cv %>%
+  roc_auc(truth = group_species, .pred_Fuliginosus) %>%
+  knitr::kable(digits = 3, caption = "Area Under the ROC Curve (AUC)")
 ```
 
 # Contributions

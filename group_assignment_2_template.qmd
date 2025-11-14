@@ -1,8 +1,8 @@
 ---
-title: "Your Title"
-subtitle: "STAT 253: Statistical Machine Learning"
+title: "Classifying Kangaroo Species Using Skull Morphology Through the Lens of Statistical Machine Learning"
+subtitle: "STAT 253"
 date: today
-author: "Your Names"
+author: "Rosie, William, Georgia and Lucia"
 format:
   html:
     toc: true
@@ -41,9 +41,9 @@ The goal of this report is to build a predictive classification model that can d
 
 # Data
 
-The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others.
+Our training dataset is made up of skull measurements from 148 individual kangaroos collected for research. The who represents three species of kangaroos: fuliginosus (n=50), giganteus (n=50), and melanops (n=48). The what consists of 20 cranial measurements captured in millimeters, including features such as basilar length, nasal dimensions, palate measurements, zygomatic width, and mandible characteristics, along with the sex of each specimen. The why centers on species identification being able to accurately classify kangaroo species from skeletal remains is crucial for paleontological research and ecological monitoring where complete specimens may be unavailable. The how involves precise cranial measurements taken from skulls using standardized morphometric techniques.
 
-Our training dataset is made up of skull measurements from 148 individual kangaroos collected for research. The who represents three species of kangaroos: fuliginosus (n=50), giganteus (n=50), and melanops (n=48). The what consists of 20 cranial measurements captured in millimeters, including features such as basilar length, nasal dimensions, palate measurements, zygomatic width, and mandible characteristics, along with the sex of each specimen. The why centers on species identification being able to accurately classify kangaroo species from skeletal remains is crucial for paleontological research and ecological monitoring where complete specimens may be unavailable. The how involves precise cranial measurements taken from skulls using standardized morphometric techniques. It is important to metion that fuliginosus and melanops are actually the same biological species since both represent the Western Grey Kangaroo (Macropus fuliginosus) with "melanops" historically used to describe specimens from a specific geographic region before being taxonomically synonymized with fuliginosus. This informed our modeling strategy.
+The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. It is important to metion that fuliginosus and melanops are actually the same biological species since both represent the Western Grey Kangaroo (Macropus fuliginosus) with "melanops" historically used to describe specimens from a specific geographic region before being taxonomically synonymized with fuliginosus.[Source](https://animaldiversity.org/accounts/Macropus_fuliginosus/). This informed our modeling strategy. 
 
 ```{r}
 #| message: false
@@ -94,11 +94,11 @@ The boxplot visualization reveals that giganteus (Eastern Grey Kangaroo) shows d
 
 # Model Building
 
-Our model building process began with the critical biological insight that fuliginosus and melanops represent the same species, the Western Grey Kangaroo (Macropus fuliginosus), with melanops being a geographic variant. Instead of training our model to distinguish between the three categories, we reframed the problem to reflect the actual biological taxonomy by grouping fuliginosus and melanops together versus giganteus (Eastern Grey Kangaroo). This decision transformed our three class problem into a binary classification task, which aligns with biological reality and improves model performance and interpretability. The boxplot visualization from the section earlier supported this approach, showing that fuliginosus and melanops have mostly similar median skull measurement distributions across all features, while giganteus displays distinct morphological differences, particularly in nasal dimensions.
+Our model building process began with the biological insight that fuliginosus and melanops represent the same species, the Western Grey Kangaroo (Macropus fuliginosus), with melanops being a geographic variant. Instead of training our model to distinguish between the three categories, we reframed the problem to reflect the actual biological taxonomy by grouping fuliginosus and melanops together versus giganteus (Eastern Grey Kangaroo). This decision transformed our three class problem into a binary classification task, which aligns with biological reality and improves model performance and interpretability. The boxplot visualization from the section earlier supported this approach, showing that fuliginosus and melanops have mostly similar median skull measurement distributions across all features, while giganteus displays distinct morphological differences, particularly in nasal dimensions.
 
-To identify the most discriminative skull features, we employed LASSO (Least Absolute Shrinkage and Selection Operator) regularization with 10-fold cross-validation, tuning across 100 penalty values. LASSO performs variable selection and regularization by shrinking less important coefficients to exactly zero, which is crucial when dealing with 20 potentially correlated cranial measurements. We selected the parsimonious penalty using the one-standard-error rule, favoring the simplest model within one standard error of the best performance to guard against overfitting. This process identified 14 key features: basilar.length, occipitonasal.length, palate.width, nasal.length, nasal.width, lacrymal.width, orbital.width, rostral.width, occipital.depth, foramina.length, mandible.width, mandible.depth, and ramus.height. These measurements capture overall skull size, facial structure, cranial depth, and mandibular characteristics, representing a comprehensive set of distinguishing features.
+To identify the most distinctive skull features, we employed LASSO (Least Absolute Shrinkage and Selection Operator) regularization with 10-fold cross-validation, tuning across 100 penalty values. LASSO performs variable selection and regularization by shrinking less important coefficients to exactly zero, which is crucial when dealing with 20 potentially correlated cranial measurements. We selected the parsimonious penalty using the one-standard-error rule, favoring the simplest model within one standard error of the best performance to guard against overfitting. This process identified 14 key features: basilar.length, occipitonasal.length, palate.width, nasal.length, nasal.width, lacrymal.width, orbital.width, rostral.width, occipital.depth, foramina.length, mandible.width, mandible.depth, and ramus.height. These measurements capture overall skull size, facial structure, cranial depth, and mandibular characteristics, representing a comprehensive set of distinguishing features.
 
-For our final classification model, we chose logistic regression using the LASSO-selected variables over more complex alternatives like random forests or KNN. This choice was made for multiple reasons. First, logistic regression provides interpretable coefficients showing exactly how each skull measurement contributes to species classification. This interpretability is lost with other methods like random forests and K-nearest neighbor, yet it is important for scientists who need to understand which anatomical features distinguish species and by how much. Second, logistic regression naturally handles binary outcomes through probability estimation and performs reliably with our sample size of 148 observations without requiring large amounts of training data. We addressed missing values through k-nearest neighbors imputation as seen in our variable recipe, which preserves relationships between similar observations. The model was validated using 10-fold cross-validation to ensure robust generalization. Our final model achieved strong predictive performance with 83.1% accuracy, 72.0% sensitivity (correctly identifying Fuliginosus group), and 91.0% specificity (correctly identifying Giganteus specimens). The high specificity indicates the model excels at correctly identifying giganteus specimens, which aligns with our observation that this species has distinct cranial morphology, especially in nasal dimensions.
+For our final classification model, we chose logistic regression using the LASSO-selected variables over more complex alternatives like random forests or KNN. This choice was made for multiple reasons. First, logistic regression provides interpretable coefficients showing exactly how each skull measurement contributes to species classification. This interpretability is lost with other methods like random forests and K-nearest neighbor, yet it is important for scientists who need to understand which anatomical features distinguish species and by how much. Second, logistic regression handles binary outcomes through probability estimation and performs reliably with our sample size of 148 observations without requiring large amounts of training data. We addressed missing values through k-nearest neighbors imputation as seen in our variable recipe, which preserves relationships between similar observations. The model was validated using 10-fold cross-validation to ensure robust generalization. Our final model achieved strong predictive performance with 83.1% accuracy, 72.0% sensitivity (correctly identifying Fuliginosus group), and 91.0% specificity (correctly identifying Giganteus specimens). The high specificity indicates the model excels at correctly identifying giganteus specimens, which aligns with our observation that this species has distinct cranial morphology, especially in nasal dimensions.
 
 # Implementation
 
@@ -147,12 +147,12 @@ lasso_models <- lasso_workflow %>%
     metrics = metric_set(mae)
   )
 
-# use best penalty to see variable selection
-best_penalty <- lasso_models %>% 
+# use penalty to see variable selection
+parsiminious_penalty <- lasso_models %>% 
   select_by_one_std_err(metric = "mae", desc(penalty))
 
 final_lasso_model <- lasso_workflow %>% 
-  finalize_workflow(parameters = best_penalty) %>% 
+  finalize_workflow(parameters = parsiminious_penalty) %>% 
   fit(data = lasso_kangaroo)
 
 # view selected variables with non-zero coefficients
@@ -265,27 +265,19 @@ log_predictions_cv %>%
   roc_auc(truth = group_species, .pred_Fuliginosus) %>%
   knitr::kable(digits = 3, caption = "Area Under the ROC Curve (AUC)")
 ```
-Our model's accuracy 83%, meaning that our model's ability of correctly distinguishing between Fuliginosis and Giganteus species is accurate 83 percent of the times. Looking at other metrics, the sensitivity of this model is 0.72, meaning that it correctly predicts our reference category Ginganteus as Ginganteus about 72% of the time. In contrast, the specificity is approximately 0.91, indicating that the model correctly predicts Fuliginosus as Fuliginosus about 91% of the time. This difference among sensitivity and specificity makes sense in the context of the data as there are more abundant values for the Fuliginosus species. These results can be calculated manually from the logistic regression confusion matrix to further enhance our results.These three metrics suport that this model's ability to make predictions is strong, specifically for predicting Fuliginosus. 
+Our model's accuracy is 83%, meaning that our model's ability of correctly distinguishing between Fuliginosis and Giganteus species is correct 83 percent of the times. Looking at other metrics, the sensitivity of this model is 0.72, meaning that it correctly predicts our reference category Ginganteus as Ginganteus about 72% of the time. In contrast, the specificity is approximately 0.91, indicating that the model correctly predicts Fuliginosus as Fuliginosus about 91% of the time. This difference among sensitivity and specificity makes sense in the context of the data as there are more abundant values for the Fuliginosus species. These results can be calculated manually from the logistic regression confusion matrix to further enhance our results.These three metrics suport that this model's ability to make predictions is strong, specifically for predicting Fuliginosus. 
 
-Another metric to evaluate this model is the Area Under the Curve (AUC), which has a value of 0.914. This indicates that the model can correctly distinguish between Fuliginosus and Giganteus about 91–92% of the time. While these performance metrics are strong, they might raise concerns about potential overfitting. However, the use of cross-validation and LASSO during model training helps mitigate this risk by testing the model on unseen folds of the data and reducing the number of predictors while preserving accuracy.
-
-
-
-
+Another metric to evaluate this model is the Area Under the Curve (AUC), which has a value of 0.914. This indicates that the model can distinguish well between Fuliginosus and Giganteus about 91–92% of the time. While these performance metrics are strong, they might raise concerns about potential overfitting. However, the use of cross-validation and LASSO during model training helps mitigate this risk by testing the model on unseen folds of the data and reducing the number of predictors while preserving accuracy. 
 
 # Contributions
 
+Model exploration was evenly distributed across all four team members. Rosie investigated decision trees and random forests, Lucia explored KNN, and Georgia and William worked together on logistic regression with LASSO variable selection. After running all models, we compared results and collaboratively selected the best model based on accuracy and mapping the two subspecies of the kangaroos together. Additionally, individual contributions included Georgia researching kangaroo taxonomy to support the binary classification, William examining approaches for handling missing data—specifically the use of step_impute_knn, Lucia interpreting and explaining model evaluation metrics, and Rosie troubleshooting issues within the tree and forest algorithms. Finally, we wrote this report collaboratively, reviewing and providing feedback on each section as a group.
+
 # Appendix
 
-```{r}
-#| eval: false
-# put code for any other models or visualizations that you considered here
-# use comments to explain what your code is doing
-```
-
-
-# Random Tree and Forest
-
+# Random Tree and Forest Exploration (Rosie)
+<details>
+<summary>View Code</summary>
 ```{r }
 #| eval: false
 tree_spec <- decision_tree() %>%
@@ -342,10 +334,14 @@ imp_vec
 
 age_forest %>% vip(geom = "point", num_features = 15)
 ```
+<details>
 
+# Knn with LASSO exploration (Lucia)
+<details>
+<summary>View Code</summary>
 ```{r}
 #| eval: false
-#KNN
+
 knn_select <- kangaroo %>% 
   select(species, basilar.length, occipitonasal.length, 
          palate.length, palate.width, nasal.length, 
@@ -389,15 +385,21 @@ final_knn_model <- knn_workflow %>%
   finalize_workflow(parameters = best_k) %>%
   fit(data = knn_select)
 ```
+<details>
 
+
+# Decision Tree with LASSO (William)
+<details>
+<summary>View Code</summary>
 ```{r}
 #| eval: false
+
 tree_select <- kangaroo %>% 
   select(species, basilar.length, occipitonasal.length, 
          palate.length, palate.width, nasal.length, 
          nasal.width, squamosal.depth)
 
-# Decision Tree
+
 tree_spec <- decision_tree() %>%
   set_mode("classification") %>%
   set_engine("rpart") %>%
@@ -432,111 +434,5 @@ tree_models %>%
   dplyr::slice(1)
 ```
 
-#random forest
+<details>
 
-```{r}
-#| eval: false
-conflicted::conflicts_prefer(ranger::importance)  
-
-rf_spec <- rand_forest() %>%
-  set_mode("classification") %>%
-  set_engine("ranger") %>%
-  set_args(
-    mtry = NULL,
-    trees = 500,
-    min_n = 2,
-    probability = FALSE,
-    importance = "impurity"
-  )
-
-rf_recipe <- recipe(species ~ ., data = tree_select) %>%
-  step_impute_knn(all_predictors())  
-
-rf_wf <- workflow() %>%
-  add_recipe(rf_recipe) %>%
-  add_model(rf_spec)
-
-species_forest <- rf_wf %>% 
-  fit(tree_select)
-
-imp_vec <- species_forest %>% 
-  extract_fit_engine() %>%
-  pluck("variable.importance") %>% 
-  sort(decreasing = TRUE)
-
-imp_vec
-
-library(vip)
-species_forest %>% vip(geom = "point", num_features = 7)  # 7 features total
-
-
-set.seed(253)
-rf_cv <- rf_wf %>%
-  fit_resamples(
-    resamples = vfold_cv(tree_select, v = 10),
-    metrics = metric_set(accuracy)
-  )
-
-# View accuracy
-rf_cv %>% collect_metrics()
-```
-
-```{r}
-#| eval: false
-## KNN Model (3 Species Classification)
-
-### Cross-Validation Metrics
-set.seed(253)
-knn_cv <- knn_workflow %>%
-  finalize_workflow(best_k) %>%  # Finalize with best k first
-  fit_resamples(
-    resamples = vfold_cv(knn_select, v = 10),
-    control = control_resamples(save_pred = TRUE),
-    metrics = metric_set(accuracy)
-  )
-
-knn_cv_metrics <- knn_cv %>% collect_metrics()
-knn_cv_metrics %>%
-  knitr::kable(digits = 3, caption = "KNN Cross-Validation Metrics (10-fold CV)")
-
-### Confusion Matrix
-# Convert species to factor
-knn_select_factor <- knn_select %>%
-  mutate(species = as.factor(species))
-
-knn_predictions <- final_knn_model %>%
-  augment(new_data = knn_select_factor)
-
-knn_cm <- knn_predictions %>%
-  conf_mat(truth = species, estimate = .pred_class)
-
-knn_cm
-
-# Visualize confusion matrix
-knn_predictions %>%
-  conf_mat(truth = species, estimate = .pred_class) %>%
-  autoplot(type = "heatmap") +
-  labs(title = "KNN Confusion Matrix",
-       subtitle = "All 3 Species Classification (k=5)") +
-  theme_minimal()
-
-### Visualize Accuracy Across CV Folds
-knn_cv %>%
-  collect_metrics(summarize = FALSE) %>%
-  filter(.metric == "accuracy") %>%
-  ggplot(aes(x = id, y = .estimate)) +
-  geom_point(size = 3, color = "steelblue") +
-  geom_hline(yintercept = mean(knn_cv %>%
-                                  collect_metrics(summarize = FALSE) %>%
-                                  filter(.metric == "accuracy") %>%
-                                  pull(.estimate)),
-             linetype = "dashed", color = "red") +
-  labs(title = "KNN Accuracy Across 10-Fold Cross-Validation",
-       subtitle = "3 Species Classification (k=5)",
-       x = "Fold",
-       y = "Accuracy") +
-  theme_minimal() +
-  coord_flip() +
-  ylim(0.5, 0.85)
-
-```

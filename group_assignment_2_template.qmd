@@ -192,6 +192,7 @@ log_kangaroo_cv <- logistic_workflow %>%
     resamples = vfold_cv(lasso_select, v = 10),  
     control = control_resamples(save_pred = TRUE, event_level = 'second'),
     metrics = metric_set(accuracy, sens, spec, roc_auc)  # AUC averaged from 10 folds
+
   )
 
 # display cross-validated performance metrics
@@ -211,29 +212,18 @@ log_kangaroo_cv %>%
 #| warning: false
 #| echo: false
 
-log_kangaroo_cv %>%
-  collect_metrics() %>%
-  knitr::kable(digits = 3,
-               caption = "Logistic Regression Cross-Validation Metrics (10-fold CV)")
+# use cross-validation predictions instead of training data predictions
+log_predictions_cv <- log_kangaroo_cv %>%
+  collect_predictions()
 
-
-lasso_select_factor <- lasso_select %>%
-  mutate(group_species = as.factor(group_species))
-
-log_predictions <- log_kangaroo %>%
-  augment(new_data = lasso_select_factor)
-
-log_cm <- log_predictions %>%
-  conf_mat(truth = group_species, estimate = .pred_class)
-
-log_cm
-
-log_predictions %>%
+# create confusion matrix from cv predictions
+log_predictions_cv %>%
   conf_mat(truth = group_species, estimate = .pred_class) %>%
   autoplot(type = "heatmap") +
   labs(title = "Logistic Regression Confusion Matrix",
-       subtitle = "Binary Classification (Giganteus vs Fuliginosus)") +
+       subtitle = "10-Fold Cross-Validation Results") +
   theme_minimal()
+
 
 log_kangaroo_cv %>%
   collect_metrics(summarize = FALSE) %>%
@@ -259,9 +249,6 @@ log_kangaroo_cv %>%
   coord_flip() +
   ylim(0.6, 1.0)
 
-# collect predictions from cross-validation with probabilities
-log_predictions_cv <- log_kangaroo_cv %>%
-  collect_predictions()
 
 # create roc curve using probability predictions
 log_predictions_cv %>%
@@ -278,6 +265,13 @@ log_predictions_cv %>%
   roc_auc(truth = group_species, .pred_Fuliginosus) %>%
   knitr::kable(digits = 3, caption = "Area Under the ROC Curve (AUC)")
 ```
+Our model's accuracy 83%, meaning that our model's ability of correctly distinguishing between Fuliginosis and Giganteus species is accurate 83 percent of the times. Looking at other metrics, the sensitivity of this model is 0.72, meaning that it correctly predicts our reference category Ginganteus as Ginganteus about 72% of the time. In contrast, the specificity is approximately 0.91, indicating that the model correctly predicts Fuliginosus as Fuliginosus about 91% of the time. This difference among sensitivity and specificity makes sense in the context of the data as there are more abundant values for the Fuliginosus species. These results can be calculated manually from the logistic regression confusion matrix to further enhance our results.These three metrics suport that this model's ability to make predictions is strong, specifically for predicting Fuliginosus. 
+
+Another metric to evaluate this model is the Area Under the Curve (AUC), which has a value of 0.914. This indicates that the model can correctly distinguish between Fuliginosus and Giganteus about 91–92% of the time. While these performance metrics are strong, they might raise concerns about potential overfitting. However, the use of cross-validation and LASSO during model training helps mitigate this risk by testing the model on unseen folds of the data and reducing the number of predictors while preserving accuracy.
+
+
+
+
 
 # Contributions
 

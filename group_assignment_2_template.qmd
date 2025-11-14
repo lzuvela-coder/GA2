@@ -94,11 +94,11 @@ The boxplot visualization reveals that giganteus (Eastern Grey Kangaroo) shows d
 
 # Model Building
 
-Our model building process began with the critical biological insight that fuliginosus and melanops represent the same species, the Western Grey Kangaroo (Macropus fuliginosus), with the melanops designation being an obsolete geographic variant. Instead of training our model to distinguish between the three categories, we reframed the problem to reflect the actual biological taxonomy by grouping fuliginosus and melanops together versus giganteus (Eastern Grey Kangaroo). This decision transformed our three class problem into a binary classification task, which not only aligns with biological reality but also improves model performance and interpretability. The boxplot visualization from the section earlier  supported this approach, showing that fuliginosus and melanops have nearly identical median skull measurement distributions across all features, while giganteus displays distinct morphological differences, particularly in nasal dimensions.
+Our model building process began with the critical biological insight that fuliginosus and melanops represent the same species, the Western Grey Kangaroo (Macropus fuliginosus), with melanops being a geographic variant. Instead of training our model to distinguish between the three categories, we reframed the problem to reflect the actual biological taxonomy by grouping fuliginosus and melanops together versus giganteus (Eastern Grey Kangaroo). This decision transformed our three class problem into a binary classification task, which aligns with biological reality and improves model performance and interpretability. The boxplot visualization from the section earlier supported this approach, showing that fuliginosus and melanops have mostly similar median skull measurement distributions across all features, while giganteus displays distinct morphological differences, particularly in nasal dimensions.
 
-To identify the most discriminative skull features, we employed LASSO (Least Absolute Shrinkage and Selection Operator) regularization with 10-fold cross-validation, tuning across 75 penalty values. LASSO performs variable selection and regularization by shrinking less important coefficients to exactly zero, which is crucial when dealing with 20 potentially correlated cranial measurements. We selected the parsimonious penalty using the one-standard-error rule, favoring the simplest model within one standard error of the best performance to guard against overfitting. This process identified seven key features: basilar.length, occipitonasal.length, palate.length, palate.width, nasal.length, nasal.width, and squamosal.depth. These measurements capture overall skull size, facial structure, and cranial depth, representing a parsimonious yet comprehensive set of distinguishing characteristics.
+To identify the most discriminative skull features, we employed LASSO (Least Absolute Shrinkage and Selection Operator) regularization with 10-fold cross-validation, tuning across 100 penalty values. LASSO performs variable selection and regularization by shrinking less important coefficients to exactly zero, which is crucial when dealing with 20 potentially correlated cranial measurements. We selected the parsimonious penalty using the one-standard-error rule, favoring the simplest model within one standard error of the best performance to guard against overfitting. This process identified 14 key features: basilar.length, occipitonasal.length, palate.width, nasal.length, nasal.width, lacrymal.width, orbital.width, rostral.width, occipital.depth, foramina.length, mandible.width, mandible.depth, and ramus.height. These measurements capture overall skull size, facial structure, cranial depth, and mandibular characteristics, representing a comprehensive set of distinguishing features.
 
-For our final classification model, we chose logistic regression using the LASSO-selected variables over more complex alternatives like random forests or KNN. This choice was made for multiple reasons. First, logistic regression provides interpretable coefficients showing exactly how each skull measurement contributes to species classification. This interpretability is lost with other methods like random forests and K-nearest neighbor, yet it is important for scientists who need to understand which anatomical features distinguish species and by how much. Second, logistic regression naturally handles binary outcomes through probability estimation and performs reliably with our sample size of 148 observations without requiring large amounts of training data. We addressed missing values through k-nearest neighbors imputation as seen in our variable recipe, which preserves relationships between similar observations.
+For our final classification model, we chose logistic regression using the LASSO-selected variables over more complex alternatives like random forests or KNN. This choice was made for multiple reasons. First, logistic regression provides interpretable coefficients showing exactly how each skull measurement contributes to species classification. This interpretability is lost with other methods like random forests and K-nearest neighbor, yet it is important for scientists who need to understand which anatomical features distinguish species and by how much. Second, logistic regression naturally handles binary outcomes through probability estimation and performs reliably with our sample size of 148 observations without requiring large amounts of training data. We addressed missing values through k-nearest neighbors imputation as seen in our variable recipe, which preserves relationships between similar observations. The model was validated using 10-fold cross-validation to ensure robust generalization. Our final model achieved strong predictive performance with 83.1% accuracy, 72.0% sensitivity (correctly identifying Fuliginosus group), and 91.0% specificity (correctly identifying Giganteus specimens). The high specificity indicates the model excels at correctly identifying giganteus specimens, which aligns with our observation that this species has distinct cranial morphology, especially in nasal dimensions.
 
 # Implementation
 
@@ -120,7 +120,8 @@ kangaroo_data_lasso <- kangaroo %>%
 lasso_kangaroo <- kangaroo_data_lasso %>%
   mutate(group_species = case_when(
     group_species == "Giganteus" ~ 0,
-    group_species == "Fuliginosus" ~ 1))
+    group_species == "Fuliginosus" ~ 1)) %>%
+  select(-species)  # remove the original species variable
 
 # set up lasso model specification
 lasso_spec <- linear_reg() %>% 
@@ -131,7 +132,7 @@ lasso_spec <- linear_reg() %>%
 # create recipe with preprocessing steps 
 kangaroo_recipe <- recipe(group_species ~ ., data = lasso_kangaroo) %>% 
   step_nzv(all_predictors()) %>% 
-  step_impute_knn(all_predictors()) %>%  ## use step impute knn for calculating missing values using knn algorithm
+  step_impute_knn(all_predictors()) %>%
   step_dummy(all_nominal_predictors()) 
 
 lasso_workflow <- workflow() %>% 
@@ -141,27 +142,30 @@ lasso_workflow <- workflow() %>%
 set.seed(253)
 lasso_models <- lasso_workflow %>% 
   tune_grid(
-    grid = grid_regular(penalty(range = c(-5, 1)), levels = 75),
+    grid = grid_regular(penalty(range = c(-5, 1)), levels = 100),
     resamples = vfold_cv(lasso_kangaroo, v = 10),
     metrics = metric_set(mae)
   )
 
-parsimonious_penalty <- lasso_models %>% 
+# use best penalty to see variable selection
+best_penalty <- lasso_models %>% 
   select_by_one_std_err(metric = "mae", desc(penalty))
 
 final_lasso_model <- lasso_workflow %>% 
-  finalize_workflow(parameters = parsimonious_penalty) %>% 
+  finalize_workflow(parameters = best_penalty) %>% 
   fit(data = lasso_kangaroo)
 
 # view selected variables with non-zero coefficients
 final_lasso_model %>% 
-  tidy()
+  tidy() %>%
+  filter(estimate!=0)
 
 # create dataset with lasso-selected variables only
 lasso_select <- kangaroo_data_lasso %>% 
   select(group_species, basilar.length, occipitonasal.length, 
-         palate.length, palate.width, nasal.length, 
-         nasal.width, squamosal.depth)
+         palate.width, nasal.length, nasal.width, lacrymal.width,
+         orbital.width, .rostral.width, occipital.depth, foramina.length,
+         mandible.width, mandible.depth, ramus.height)
 
 # set up logistic regression specification
 logistic_spec <- logistic_reg() %>%
@@ -177,6 +181,7 @@ logistic_workflow <- workflow() %>%
   add_recipe(kangaroo_recipe) %>%
   add_model(logistic_spec) 
 
+# fit logistic regression model on full dataset
 log_kangaroo <- logistic_workflow %>% 
   fit(data = lasso_select)
 
@@ -189,8 +194,12 @@ log_kangaroo_cv <- logistic_workflow %>%
     metrics = metric_set(accuracy, sens, spec)  
   )
 
+# display cross-validated performance metrics
 log_kangaroo_cv %>% 
   collect_metrics()
+
+
+
 
 ```
 </details>

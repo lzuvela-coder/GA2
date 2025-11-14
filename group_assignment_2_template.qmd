@@ -11,13 +11,7 @@ format:
     code-tools: true
 ---
 
-
-
 <!-- Your report should follow the format specified in the Group Assignment 2 Instructions. Please review that document carefully! -->
-
-
-
-
 
 ```{r}
 #| include: false
@@ -41,17 +35,20 @@ library(yardstick)
 
 ```
 
-
 # Research Goals
 
 The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
 
 # Data
 
-The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others. 
+The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others.
 
-##  Data Exploration 
+Our training dataset is made up of skull measurements from 148 individual kangaroos collected for research. The who represents three species of kangaroos: fuliginosus (n=50), giganteus (n=50), and melanops (n=48). The what consists of 20 cranial measurements captured in millimeters, including features such as basilar length, nasal dimensions, palate measurements, zygomatic width, and mandible characteristics, along with the sex of each specimen. The why centers on species identification being able to accurately classify kangaroo species from skeletal remains is crucial for paleontological research and ecological monitoring where complete specimens may be unavailable. The how involves precise cranial measurements taken from skulls using standardized morphometric techniques. It is important to metion that fuliginosus and melanops are actually the same biological species since both represent the Western Grey Kangaroo (Macropus fuliginosus) with "melanops" historically used to describe specimens from a specific geographic region before being taxonomically synonymized with fuliginosus. This informed our modeling strategy.
+
 ```{r}
+#| message: false
+#| warning: false
+#| echo: false
 kangaroo <-read_csv("kangaroo.csv")
 
  kangaroo%>% 
@@ -68,9 +65,7 @@ if(nrow(missing_summary) > 0) {
   missing_summary %>%
     knitr::kable(caption = "Missing Values Summary")
 }
-```
-### Data Visualization
-```{r}
+
 key_features <- c("basilar.length", "occipitonasal.length", "palate.length",
                   "zygomatic.width", "mandible.length", "nasal.length")
 
@@ -86,9 +81,24 @@ kangaroo %>%
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
         legend.position = "bottom")
+
 ```
 
 
+
+The boxplot visualization reveals that giganteus (Eastern Grey Kangaroo) shows distinctly larger nasal measurements compared to the other two groups, while fuliginosus and melanops display remarkably similar median distributions across most skull features, consistent with them being the same species. This visual evidence supported our decision to group these two categories together for classification purposes.
+
+
+
+
+
+# Model Building
+
+Our model building process began with the critical biological insight that fuliginosus and melanops represent the same species, the Western Grey Kangaroo (Macropus fuliginosus), with the melanops designation being an obsolete geographic variant. Instead of training our model to distinguish between the three categories, we reframed the problem to reflect the actual biological taxonomy by grouping fuliginosus and melanops together versus giganteus (Eastern Grey Kangaroo). This decision transformed our three class problem into a binary classification task, which not only aligns with biological reality but also improves model performance and interpretability. The boxplot visualization from the section earlier  supported this approach, showing that fuliginosus and melanops have nearly identical median skull measurement distributions across all features, while giganteus displays distinct morphological differences, particularly in nasal dimensions.
+
+To identify the most discriminative skull features, we employed LASSO (Least Absolute Shrinkage and Selection Operator) regularization with 10-fold cross-validation, tuning across 75 penalty values. LASSO performs variable selection and regularization by shrinking less important coefficients to exactly zero, which is crucial when dealing with 20 potentially correlated cranial measurements. We selected the parsimonious penalty using the one-standard-error rule, favoring the simplest model within one standard error of the best performance to guard against overfitting. This process identified seven key features: basilar.length, occipitonasal.length, palate.length, palate.width, nasal.length, nasal.width, and squamosal.depth. These measurements capture overall skull size, facial structure, and cranial depth, representing a parsimonious yet comprehensive set of distinguishing characteristics.
+
+For our final classification model, we chose logistic regression using the LASSO-selected variables over more complex alternatives like random forests or KNN. This choice was made for multiple reasons. First, logistic regression provides interpretable coefficients showing exactly how each skull measurement contributes to species classification. This interpretability is lost with other methods like random forests and K-nearest neighbor, yet it is important for scientists who need to understand which anatomical features distinguish species and by how much. Second, logistic regression naturally handles binary outcomes through probability estimation and performs reliably with our sample size of 148 observations without requiring large amounts of training data. We addressed missing values through k-nearest neighbors imputation as seen in our variable recipe, which preserves relationships between similar observations.
 
 # Implementation
 
@@ -96,34 +106,33 @@ We used tidymodels to implement this model building process. See code below for 
 
 <details>
 <summary>View Code</summary>
-
-
-
 ```{r}
 #| message: false
 #| warning: false
 
+# group fuliginosus and melanops together (same species biologically)
 kangaroo_data_lasso <- kangaroo %>%
   mutate(group_species = case_when(
     species == "giganteus" ~ "Giganteus", 
     species %in% c("fuliginosus", "melanops") ~ "Fuliginosus")) 
 
+# encode species groups as numeric for lasso
 lasso_kangaroo <- kangaroo_data_lasso %>%
   mutate(group_species = case_when(
     group_species == "Giganteus" ~ 0,
     group_species == "Fuliginosus" ~ 1))
 
-# LASSO
+# set up lasso model specification
 lasso_spec <- linear_reg() %>% 
   set_mode("regression") %>% 
   set_engine("glmnet") %>% 
   set_args(mixture = 1, penalty = tune())
 
+# create recipe with preprocessing steps 
 kangaroo_recipe <- recipe(group_species ~ ., data = lasso_kangaroo) %>% 
   step_nzv(all_predictors()) %>% 
-  step_impute_knn(all_predictors()) %>% 
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_numeric_predictors())
+  step_impute_knn(all_predictors()) %>%  ## use step impute knn for calculating missing values using knn algorithm
+  step_dummy(all_nominal_predictors()) 
 
 lasso_workflow <- workflow() %>% 
   add_recipe(kangaroo_recipe) %>% 
@@ -133,7 +142,7 @@ set.seed(253)
 lasso_models <- lasso_workflow %>% 
   tune_grid(
     grid = grid_regular(penalty(range = c(-5, 1)), levels = 75),
-    resamples = vfold_cv(lasso_kangaroo, v = 15),
+    resamples = vfold_cv(lasso_kangaroo, v = 10),
     metrics = metric_set(mae)
   )
 
@@ -144,29 +153,26 @@ final_lasso_model <- lasso_workflow %>%
   finalize_workflow(parameters = parsimonious_penalty) %>% 
   fit(data = lasso_kangaroo)
 
+# view selected variables with non-zero coefficients
 final_lasso_model %>% 
   tidy()
 
-## vars = basilar.length, occipitonasal.length, palate.length, palate.width, nasal.length, nasal.width, squamosal.depth
-
-
-```
-
-
-</details>
-```{r}
+# create dataset with lasso-selected variables only
 lasso_select <- kangaroo_data_lasso %>% 
   select(group_species, basilar.length, occipitonasal.length, 
          palate.length, palate.width, nasal.length, 
          nasal.width, squamosal.depth)
 
+# set up logistic regression specification
 logistic_spec <- logistic_reg() %>%
   set_mode("classification") %>% 
   set_engine("glm")
 
+# create recipe with knn imputation for selected variables
 kangaroo_recipe <- recipe(group_species ~ ., data = lasso_select) %>% 
   step_impute_knn(all_predictors())
 
+# combine recipe and logistic model into workflow
 logistic_workflow <- workflow() %>% 
   add_recipe(kangaroo_recipe) %>%
   add_model(logistic_spec) 
@@ -174,24 +180,20 @@ logistic_workflow <- workflow() %>%
 log_kangaroo <- logistic_workflow %>% 
   fit(data = lasso_select)
 
+# evaluate model using 10-fold cross-validation
 set.seed(253)
 log_kangaroo_cv <- logistic_workflow %>%  
   fit_resamples(
     resamples = vfold_cv(lasso_select, v = 10),  
     control = control_resamples(save_pred = TRUE, event_level = 'second'),
     metrics = metric_set(accuracy, sens, spec)  
-
   )
 
 log_kangaroo_cv %>% 
   collect_metrics()
 
 ```
-
-
-
-
-
+</details>
 
 # Model Evaluation
 
@@ -251,11 +253,7 @@ log_kangaroo_cv %>%
 
 ```
 
-
-
 # Contributions
-
-
 
 # Appendix
 
@@ -265,130 +263,11 @@ log_kangaroo_cv %>%
 # use comments to explain what your code is doing
 ```
 
-## logistic- William
-```{r}
-kangaroo_log_df<- kangaroo_data
-
-kangaroo_log_df$species <- ifelse(kangaroo_log_df$species %in% c("melanops", "fuliginosus"),
-                                 "fuliginosus", kangaroo_log_df$species)
-
-kangaroo_log_df <- kangaroo_log_df %>%
-  mutate(species = relevel(as.factor(species), ref = "giganteus"))
-
-
-kangaroo_recipe <- recipe(species ~ basilar.length + nasal.width + zygomatic.width + mandible.depth,
-                          data = kangaroo_log_df) %>%
-  step_normalize(all_predictors())
-
-
-log_model <- logistic_reg() %>%
-  set_engine("glm") %>%
-  set_mode("classification")
-
-kangaroo_wf <- workflow() %>%
-  add_model(log_model) %>%
-  add_recipe(kangaroo_recipe)
-
-kangaroo_fit <- fit(kangaroo_wf, data = kangaroo_log_df)
-
-# Get a summary table
-kangaroo_fit %>%
-  tidy()
-
-kangaroo_fit %>%
-  tidy() %>%
-  mutate(
-    OR = exp(estimate),
-    OR.conf.low = exp(estimate - 1.96*std.error),
-    OR.conf.high = exp(estimate + 1.96*std.error)
-  )
-
-
-
-```
-
-
-```{r}
-kangaroo_fit %>%
-  augment(new_data = kangaroo_log_df)
-```
-```{r}
-kangaroo_predictions <- kangaroo_fit %>%
-  augment(new_data = kangaroo_log_df)
-
-accuracy <- kangaroo_predictions %>%
-  accuracy(truth = species, estimate = .pred_class)
-
-accuracy
-
-conf_mat <- kangaroo_predictions %>%
-  conf_mat(truth = species, estimate = .pred_class)
-
-conf_mat
-
-classification_metrics <- kangaroo_predictions %>%
-  metrics(truth = species, estimate = .pred_class)
-
-classification_metrics
-```
-
-```{r}
-#| message: false
-#| warning: false
-#| echo: false
-
-# Load yardstick for metrics (if not already loaded)
-library(yardstick)
-
-# Set seed for reproducibility
-set.seed(320)
-
-# Create cross-validation folds (10-fold CV)
-kangaroo_cv <- vfold_cv(kangaroo_log_df, v = 10)
-
-# Fit the model using cross-validation
-cv_results <- kangaroo_wf %>%
-  fit_resamples(
-    resamples = kangaroo_cv,
-    control = control_resamples(save_pred = TRUE)
-  )
-
-# View cross-validation metrics (default: accuracy and roc_auc)
-cv_results %>%
-  collect_metrics()
-
-# Get detailed metrics
-cv_metrics_detailed <- cv_results %>%
-  collect_metrics() %>%
-  select(.metric, mean, std_err, n)
-
-cv_metrics_detailed
-
-# Visualize accuracy across folds
-cv_results %>%
-  collect_metrics(summarize = FALSE) %>%
-  filter(.metric == "accuracy") %>%
-  ggplot(aes(x = id, y = .estimate)) +
-  geom_point(size = 3, color = "blue") +
-  geom_hline(yintercept = mean(collect_metrics(cv_results, summarize = FALSE) %>%
-                                  filter(.metric == "accuracy") %>%
-                                  pull(.estimate)),
-             linetype = "dashed", color = "red") +
-  labs(title = "Accuracy Across 10-Fold Cross-Validation",
-       x = "Fold",
-       y = "Accuracy") +
-  theme_minimal() +
-  coord_flip()
-
-# Get confusion matrix from CV predictions
-cv_results %>%
-  collect_predictions() %>%
-  conf_mat(truth = species, estimate = .pred_class)
-```
 
 # Random Tree and Forest
 
-```{r}
+```{r }
+#| eval: false
 tree_spec <- decision_tree() %>%
   set_mode("classification") %>%
   set_engine("rpart") %>%
@@ -415,6 +294,7 @@ final_tree %>% extract_fit_engine() %>% rpart.plot()
 ```
 
 ```{r}
+#| eval: false
 tree_models %>%
   collect_metrics() %>%
   dplyr::filter(.metric == "accuracy") %>%
@@ -422,8 +302,8 @@ tree_models %>%
   dplyr::slice(1)
 ```
 
-
 ```{r}
+#| eval: false  
 rf_spec <- rand_forest() %>%
   set_mode("classification") %>%
   set_engine("ranger") %>%
@@ -444,6 +324,7 @@ age_forest %>% vip(geom = "point", num_features = 15)
 ```
 
 ```{r}
+#| eval: false
 #KNN
 knn_select <- kangaroo %>% 
   select(species, basilar.length, occipitonasal.length, 
@@ -489,9 +370,8 @@ final_knn_model <- knn_workflow %>%
   fit(data = knn_select)
 ```
 
-
 ```{r}
-
+#| eval: false
 tree_select <- kangaroo %>% 
   select(species, basilar.length, occipitonasal.length, 
          palate.length, palate.width, nasal.length, 
@@ -532,10 +412,10 @@ tree_models %>%
   dplyr::slice(1)
 ```
 
-
-
 #random forest
+
 ```{r}
+#| eval: false
 conflicted::conflicts_prefer(ranger::importance)  
 
 rf_spec <- rand_forest() %>%
@@ -581,8 +461,8 @@ rf_cv <- rf_wf %>%
 rf_cv %>% collect_metrics()
 ```
 
-
 ```{r}
+#| eval: false
 ## KNN Model (3 Species Classification)
 
 ### Cross-Validation Metrics

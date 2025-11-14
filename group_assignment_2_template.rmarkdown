@@ -11,7 +11,9 @@ format:
     code-tools: true
 ---
 
+
 <!-- Your report should follow the format specified in the Group Assignment 2 Instructions. Please review that document carefully! -->
+
 
 ```{r}
 #| include: false
@@ -35,6 +37,7 @@ library(yardstick)
 
 ```
 
+
 # Research Goals
 
 The goal of this report is to build a predictive classification model that can determine a kangaroo’s species from skull measurements. Correctly identifying species from skeletal features is useful in ecological monitoring, museum curation, and paleontology field research where complete specimens are rare. In addition to developing and evaluating our predictive algorithm, we aim to highlight which skull characteristics most strongly distinguish species, supported by visualizations and model-based evidence.
@@ -44,6 +47,7 @@ The goal of this report is to build a predictive classification model that can d
 The focus outcome variable in this study is 'species' which has three groups: fuliginosus, giganteus, and melanops. From the raw data, we counted with 148 observations and 20 predictor variables including skull features such as nasal length, mandible length and sex among others.
 
 Our training dataset is made up of skull measurements from 148 individual kangaroos collected for research. The who represents three species of kangaroos: fuliginosus (n=50), giganteus (n=50), and melanops (n=48). The what consists of 20 cranial measurements captured in millimeters, including features such as basilar length, nasal dimensions, palate measurements, zygomatic width, and mandible characteristics, along with the sex of each specimen. The why centers on species identification being able to accurately classify kangaroo species from skeletal remains is crucial for paleontological research and ecological monitoring where complete specimens may be unavailable. The how involves precise cranial measurements taken from skulls using standardized morphometric techniques. It is important to metion that fuliginosus and melanops are actually the same biological species since both represent the Western Grey Kangaroo (Macropus fuliginosus) with "melanops" historically used to describe specimens from a specific geographic region before being taxonomically synonymized with fuliginosus. This informed our modeling strategy.
+
 
 ```{r}
 #| message: false
@@ -86,6 +90,7 @@ kangaroo %>%
 
 
 
+
 The boxplot visualization reveals that giganteus (Eastern Grey Kangaroo) shows distinctly larger nasal measurements compared to the other two groups, while fuliginosus and melanops display remarkably similar median distributions across most skull features, consistent with them being the same species. This visual evidence supported our decision to group these two categories together for classification purposes.
 
 
@@ -106,6 +111,7 @@ We used tidymodels to implement this model building process. See code below for 
 
 <details>
 <summary>View Code</summary>
+
 ```{r}
 #| message: false
 #| warning: false
@@ -202,9 +208,11 @@ log_kangaroo_cv %>%
 
 
 ```
+
 </details>
 
 # Model Evaluation
+
 
 ```{r}
 #| message: false
@@ -279,9 +287,11 @@ log_predictions_cv %>%
   knitr::kable(digits = 3, caption = "Area Under the ROC Curve (AUC)")
 ```
 
+
 # Contributions
 
 # Appendix
+
 
 ```{r}
 #| eval: false
@@ -290,7 +300,9 @@ log_predictions_cv %>%
 ```
 
 
+
 # Random Tree and Forest
+
 
 ```{r }
 #| eval: false
@@ -438,7 +450,9 @@ tree_models %>%
   dplyr::slice(1)
 ```
 
+
 #random forest
+
 
 ```{r}
 #| eval: false
@@ -546,3 +560,4 @@ knn_cv %>%
   ylim(0.5, 0.85)
 
 ```
+

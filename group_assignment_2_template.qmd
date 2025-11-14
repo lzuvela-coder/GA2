@@ -191,7 +191,7 @@ log_kangaroo_cv <- logistic_workflow %>%
   fit_resamples(
     resamples = vfold_cv(lasso_select, v = 10),  
     control = control_resamples(save_pred = TRUE, event_level = 'second'),
-    metrics = metric_set(accuracy, sens, spec, roc_auc)  
+    metrics = metric_set(accuracy, sens, spec)  
   )
 
 # display cross-validated performance metrics
@@ -259,25 +259,14 @@ log_kangaroo_cv %>%
   coord_flip() +
   ylim(0.6, 1.0)
 
-# collect predictions from cross-validation with probabilities
-log_predictions_cv <- log_kangaroo_cv %>%
-  collect_predictions()
 
-# create roc curve using probability predictions
-log_predictions_cv %>%
-  roc_curve(truth = group_species, .pred_Fuliginosus) %>%
-  autoplot() +
-  labs(
-    title = "ROC Curve for Logistic Regression Model",
-    subtitle = "Binary Classification (Giganteus vs Fuliginosus)"
-  ) +
-  theme_minimal()
-
-# calculate and display AUC
-log_predictions_cv %>%
-  roc_auc(truth = group_species, .pred_Fuliginosus) %>%
-  knitr::kable(digits = 3, caption = "Area Under the ROC Curve (AUC)")
 ```
+
+Our model's accuracy 83%, meaning that our model's ability of correctly distinguishing between Fuliginosis and Giganteus species is accurate 83 percent of the times. Looking at other metrics, the sensitivity of this model is 0.72, meaning that it correctly predicts our reference category Ginganteus as Ginganteus about 72% of the time. In contrast, the specificity is approximately 0.91, indicating that the model correctly predicts Fuliginosus as Fuliginosus about 91% of the time. This difference among sensitivity and specificity makes sense in the context of the data as there are more abundant values for the Fuliginosus species. These three metrics suuport that this model's ability to make predictions is strong, specifically for Fuliginosus. 
+
+
+
+
 
 # Contributions
 

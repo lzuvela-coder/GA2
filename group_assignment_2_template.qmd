@@ -155,13 +155,11 @@ final_lasso_model %>%
 
 </details>
 ```{r}
-# Create lasso_select with character group_species
 lasso_select <- kangaroo_data_lasso %>% 
   select(group_species, basilar.length, occipitonasal.length, 
          palate.length, palate.width, nasal.length, 
          nasal.width, squamosal.depth)
 
-# Logistic regression
 logistic_spec <- logistic_reg() %>%
   set_mode("classification") %>% 
   set_engine("glm")
@@ -190,140 +188,6 @@ log_kangaroo_cv %>%
 
 ```
 
-```{r}
-#KNN
-knn_select <- kangaroo %>% 
-  select(species, basilar.length, occipitonasal.length, 
-         palate.length, palate.width, nasal.length, 
-         nasal.width, squamosal.depth)
-
-knn_spec <- nearest_neighbor() %>%
-  set_mode("classification") %>%
-  set_engine(engine = "kknn") %>%
-  set_args(neighbors = tune())
-
-variable_recipe <- recipe(species ~., data = knn_select) %>%
-  step_nzv(all_predictors()) %>%
-  step_impute_knn(all_predictors()) %>% 
-  step_dummy(all_nominal_predictors()) %>%
-  step_normalize(all_numeric_predictors())
-
-knn_workflow <- workflow() %>%
-  add_recipe(variable_recipe) %>%
-  add_model(knn_spec)
-
-set.seed(253)
-knn_models <- knn_workflow %>%
-  tune_grid(
-    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
-    resamples = vfold_cv(knn_select, v = 10),
-    metrics = metric_set(accuracy)
-  )
-
-knn_models %>%
-  autoplot()
-
-best_k <- knn_models %>%
-  select_best()
-best_k
-
-knn_models %>%
-  collect_metrics() %>%
-  filter(neighbors == best_k$neighbors)
-
-final_knn_model <- knn_workflow %>%
-  finalize_workflow(parameters = best_k) %>%
-  fit(data = knn_select)
-```
-
-#Tree
-```{r}
-tree_select <- kangaroo %>% 
-  select(species, basilar.length, occipitonasal.length, 
-         palate.length, palate.width, nasal.length, 
-         nasal.width, squamosal.depth)
-
-# Decision Tree
-tree_spec <- decision_tree() %>%
-  set_mode("classification") %>%
-  set_engine("rpart") %>%
-  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
-
-tree_recipe <- recipe(species ~ ., data = tree_select) %>%
-  step_impute_knn(all_predictors())  
-
-tree_wf <- workflow() %>%
-  add_recipe(tree_recipe) %>%
-  add_model(tree_spec)
-
-set.seed(253)
-tree_models <- tree_wf %>%
-  tune_grid(
-    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
-    resamples = vfold_cv(tree_select, v = 10),  # 10-fold CV
-    metrics = metric_set(accuracy)
-  )
-
-best_cost <- select_best(tree_models, metric = "accuracy")
-final_tree <- tree_wf %>% 
-  finalize_workflow(best_cost) %>% 
-  fit(tree_select)
-
-final_tree %>% extract_fit_engine() %>% rpart.plot()
-
-tree_models %>%
-  collect_metrics() %>%
-  dplyr::filter(.metric == "accuracy") %>%
-  dplyr::arrange(desc(mean)) %>% 
-  dplyr::slice(1)
-```
-
-#random forest
-```{r}
-conflicted::conflicts_prefer(ranger::importance)  
-
-rf_spec <- rand_forest() %>%
-  set_mode("classification") %>%
-  set_engine("ranger") %>%
-  set_args(
-    mtry = NULL,
-    trees = 500,
-    min_n = 2,
-    probability = FALSE,
-    importance = "impurity"
-  )
-
-rf_recipe <- recipe(species ~ ., data = tree_select) %>%
-  step_impute_knn(all_predictors())  
-
-rf_wf <- workflow() %>%
-  add_recipe(rf_recipe) %>%
-  add_model(rf_spec)
-
-species_forest <- rf_wf %>% 
-  fit(tree_select)
-
-imp_vec <- species_forest %>% 
-  extract_fit_engine() %>%
-  pluck("variable.importance") %>% 
-  sort(decreasing = TRUE)
-
-imp_vec
-
-library(vip)
-species_forest %>% vip(geom = "point", num_features = 7)  # 7 features total
-
-
-set.seed(253)
-rf_cv <- rf_wf %>%
-  fit_resamples(
-    resamples = vfold_cv(tree_select, v = 10),
-    metrics = metric_set(accuracy)
-  )
-
-# View accuracy
-rf_cv %>% collect_metrics()
-```
 
 
 
@@ -336,73 +200,12 @@ rf_cv %>% collect_metrics()
 #| warning: false
 #| echo: false
 
-# Model Evaluation
-
-## KNN Model (3 Species Classification)
-
-### Cross-Validation Metrics
-set.seed(253)
-knn_cv <- knn_workflow %>%
-  finalize_workflow(best_k) %>%  # Finalize with best k first
-  fit_resamples(
-    resamples = vfold_cv(knn_select, v = 10),
-    control = control_resamples(save_pred = TRUE),
-    metrics = metric_set(accuracy)
-  )
-
-knn_cv_metrics <- knn_cv %>% collect_metrics()
-knn_cv_metrics %>%
-  knitr::kable(digits = 3, caption = "KNN Cross-Validation Metrics (10-fold CV)")
-
-### Confusion Matrix
-# Convert species to factor
-knn_select_factor <- knn_select %>%
-  mutate(species = as.factor(species))
-
-knn_predictions <- final_knn_model %>%
-  augment(new_data = knn_select_factor)
-
-knn_cm <- knn_predictions %>%
-  conf_mat(truth = species, estimate = .pred_class)
-
-knn_cm
-
-# Visualize confusion matrix
-knn_predictions %>%
-  conf_mat(truth = species, estimate = .pred_class) %>%
-  autoplot(type = "heatmap") +
-  labs(title = "KNN Confusion Matrix",
-       subtitle = "All 3 Species Classification (k=5)") +
-  theme_minimal()
-
-### Visualize Accuracy Across CV Folds
-knn_cv %>%
-  collect_metrics(summarize = FALSE) %>%
-  filter(.metric == "accuracy") %>%
-  ggplot(aes(x = id, y = .estimate)) +
-  geom_point(size = 3, color = "steelblue") +
-  geom_hline(yintercept = mean(knn_cv %>%
-                                  collect_metrics(summarize = FALSE) %>%
-                                  filter(.metric == "accuracy") %>%
-                                  pull(.estimate)),
-             linetype = "dashed", color = "red") +
-  labs(title = "KNN Accuracy Across 10-Fold Cross-Validation",
-       subtitle = "3 Species Classification (k=5)",
-       x = "Fold",
-       y = "Accuracy") +
-  theme_minimal() +
-  coord_flip() +
-  ylim(0.5, 0.85)
-
-## Logistic Regression Model (Binary Classification)
-
-### Cross-Validation Metrics
 log_kangaroo_cv %>%
   collect_metrics() %>%
-  knitr::kable(digits = 3, caption = "Logistic Regression Cross-Validation Metrics (10-fold CV)")
+  knitr::kable(digits = 3,
+               caption = "Logistic Regression Cross-Validation Metrics (10-fold CV)")
 
-### Confusion Matrix
-# Convert to factor
+
 lasso_select_factor <- lasso_select %>%
   mutate(group_species = as.factor(group_species))
 
@@ -414,7 +217,6 @@ log_cm <- log_predictions %>%
 
 log_cm
 
-# Visualize confusion matrix
 log_predictions %>%
   conf_mat(truth = group_species, estimate = .pred_class) %>%
   autoplot(type = "heatmap") +
@@ -422,61 +224,30 @@ log_predictions %>%
        subtitle = "Binary Classification (Giganteus vs Fuliginosus)") +
   theme_minimal()
 
-### Visualize Accuracy Across CV Folds
 log_kangaroo_cv %>%
   collect_metrics(summarize = FALSE) %>%
   filter(.metric == "accuracy") %>%
   ggplot(aes(x = id, y = .estimate)) +
   geom_point(size = 3, color = "darkgreen") +
-  geom_hline(yintercept = mean(log_kangaroo_cv %>%
-                                  collect_metrics(summarize = FALSE) %>%
-                                  filter(.metric == "accuracy") %>%
-                                  pull(.estimate)),
-             linetype = "dashed", color = "red") +
-  labs(title = "Logistic Regression Accuracy Across 10-Fold Cross-Validation",
-       subtitle = "Binary Classification",
-       x = "Fold",
-       y = "Accuracy") +
+  geom_hline(
+    yintercept = mean(
+      log_kangaroo_cv %>%
+        collect_metrics(summarize = FALSE) %>%
+        filter(.metric == "accuracy") %>%
+        pull(.estimate)
+    ),
+    linetype = "dashed", color = "red"
+  ) +
+  labs(
+    title = "Logistic Regression Accuracy Across 10-Fold Cross-Validation",
+    subtitle = "Binary Classification",
+    x = "Fold",
+    y = "Accuracy"
+  ) +
   theme_minimal() +
   coord_flip() +
   ylim(0.6, 1.0)
 
-## Model Comparison
-
-### Summary Table
-model_comparison <- tibble(
-  Model = c("KNN (k=5)", "Logistic Regression"),
-  Classification = c("3 Species", "Binary (2 Groups)"),
-  `CV Accuracy` = c(
-    knn_cv_metrics %>% filter(.metric == "accuracy") %>% pull(mean),
-    log_kangaroo_cv %>% collect_metrics() %>% filter(.metric == "accuracy") %>% pull(mean)
-  ),
-  `Std Error` = c(
-    knn_cv_metrics %>% filter(.metric == "accuracy") %>% pull(std_err),
-    log_kangaroo_cv %>% collect_metrics() %>% filter(.metric == "accuracy") %>% pull(std_err)
-  )
-)
-
-model_comparison %>%
-  knitr::kable(digits = 3, caption = "Model Performance Comparison")
-
-### Visualization of Model Comparison
-model_comparison %>%
-  ggplot(aes(x = Model, y = `CV Accuracy`, fill = Model)) +
-  geom_col() +
-  geom_errorbar(aes(ymin = `CV Accuracy` - `Std Error`, 
-                    ymax = `CV Accuracy` + `Std Error`),
-                width = 0.2) +
-  geom_text(aes(label = scales::percent(`CV Accuracy`, accuracy = 0.1)),
-            vjust = -0.5, size = 4) +
-  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
-  labs(title = "Model Accuracy Comparison",
-       subtitle = "10-Fold Cross-Validation Results",
-       y = "Accuracy",
-       x = "") +
-  theme_minimal() +
-  theme(legend.position = "none") +
-  scale_fill_manual(values = c("steelblue", "darkgreen"))
 
 ```
 
@@ -670,4 +441,202 @@ imp_vec <- age_forest %>% extract_fit_engine() %>%
 imp_vec
 
 age_forest %>% vip(geom = "point", num_features = 15)
+```
+
+```{r}
+#KNN
+knn_select <- kangaroo %>% 
+  select(species, basilar.length, occipitonasal.length, 
+         palate.length, palate.width, nasal.length, 
+         nasal.width, squamosal.depth)
+
+knn_spec <- nearest_neighbor() %>%
+  set_mode("classification") %>%
+  set_engine(engine = "kknn") %>%
+  set_args(neighbors = tune())
+
+variable_recipe <- recipe(species ~., data = knn_select) %>%
+  step_nzv(all_predictors()) %>%
+  step_impute_knn(all_predictors()) %>% 
+  step_dummy(all_nominal_predictors()) %>%
+  step_normalize(all_numeric_predictors())
+
+knn_workflow <- workflow() %>%
+  add_recipe(variable_recipe) %>%
+  add_model(knn_spec)
+
+set.seed(253)
+knn_models <- knn_workflow %>%
+  tune_grid(
+    grid = grid_regular(neighbors(range = c(1, 74)), levels = 50),
+    resamples = vfold_cv(knn_select, v = 10),
+    metrics = metric_set(accuracy)
+  )
+
+knn_models %>%
+  autoplot()
+
+best_k <- knn_models %>%
+  select_best()
+best_k
+
+knn_models %>%
+  collect_metrics() %>%
+  filter(neighbors == best_k$neighbors)
+
+final_knn_model <- knn_workflow %>%
+  finalize_workflow(parameters = best_k) %>%
+  fit(data = knn_select)
+```
+
+
+```{r}
+
+tree_select <- kangaroo %>% 
+  select(species, basilar.length, occipitonasal.length, 
+         palate.length, palate.width, nasal.length, 
+         nasal.width, squamosal.depth)
+
+# Decision Tree
+tree_spec <- decision_tree() %>%
+  set_mode("classification") %>%
+  set_engine("rpart") %>%
+  set_args(cost_complexity = tune(), min_n = 2, tree_depth = 30)
+
+tree_recipe <- recipe(species ~ ., data = tree_select) %>%
+  step_impute_knn(all_predictors())  
+
+tree_wf <- workflow() %>%
+  add_recipe(tree_recipe) %>%
+  add_model(tree_spec)
+
+set.seed(253)
+tree_models <- tree_wf %>%
+  tune_grid(
+    grid = grid_regular(cost_complexity(range = c(-5, 0.1)), levels = 20),
+    resamples = vfold_cv(tree_select, v = 10),  # 10-fold CV
+    metrics = metric_set(accuracy)
+  )
+
+best_cost <- select_best(tree_models, metric = "accuracy")
+final_tree <- tree_wf %>% 
+  finalize_workflow(best_cost) %>% 
+  fit(tree_select)
+
+final_tree %>% extract_fit_engine() %>% rpart.plot()
+
+tree_models %>%
+  collect_metrics() %>%
+  dplyr::filter(.metric == "accuracy") %>%
+  dplyr::arrange(desc(mean)) %>% 
+  dplyr::slice(1)
+```
+
+
+
+#random forest
+```{r}
+conflicted::conflicts_prefer(ranger::importance)  
+
+rf_spec <- rand_forest() %>%
+  set_mode("classification") %>%
+  set_engine("ranger") %>%
+  set_args(
+    mtry = NULL,
+    trees = 500,
+    min_n = 2,
+    probability = FALSE,
+    importance = "impurity"
+  )
+
+rf_recipe <- recipe(species ~ ., data = tree_select) %>%
+  step_impute_knn(all_predictors())  
+
+rf_wf <- workflow() %>%
+  add_recipe(rf_recipe) %>%
+  add_model(rf_spec)
+
+species_forest <- rf_wf %>% 
+  fit(tree_select)
+
+imp_vec <- species_forest %>% 
+  extract_fit_engine() %>%
+  pluck("variable.importance") %>% 
+  sort(decreasing = TRUE)
+
+imp_vec
+
+library(vip)
+species_forest %>% vip(geom = "point", num_features = 7)  # 7 features total
+
+
+set.seed(253)
+rf_cv <- rf_wf %>%
+  fit_resamples(
+    resamples = vfold_cv(tree_select, v = 10),
+    metrics = metric_set(accuracy)
+  )
+
+# View accuracy
+rf_cv %>% collect_metrics()
+```
+
+
+```{r}
+## KNN Model (3 Species Classification)
+
+### Cross-Validation Metrics
+set.seed(253)
+knn_cv <- knn_workflow %>%
+  finalize_workflow(best_k) %>%  # Finalize with best k first
+  fit_resamples(
+    resamples = vfold_cv(knn_select, v = 10),
+    control = control_resamples(save_pred = TRUE),
+    metrics = metric_set(accuracy)
+  )
+
+knn_cv_metrics <- knn_cv %>% collect_metrics()
+knn_cv_metrics %>%
+  knitr::kable(digits = 3, caption = "KNN Cross-Validation Metrics (10-fold CV)")
+
+### Confusion Matrix
+# Convert species to factor
+knn_select_factor <- knn_select %>%
+  mutate(species = as.factor(species))
+
+knn_predictions <- final_knn_model %>%
+  augment(new_data = knn_select_factor)
+
+knn_cm <- knn_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class)
+
+knn_cm
+
+# Visualize confusion matrix
+knn_predictions %>%
+  conf_mat(truth = species, estimate = .pred_class) %>%
+  autoplot(type = "heatmap") +
+  labs(title = "KNN Confusion Matrix",
+       subtitle = "All 3 Species Classification (k=5)") +
+  theme_minimal()
+
+### Visualize Accuracy Across CV Folds
+knn_cv %>%
+  collect_metrics(summarize = FALSE) %>%
+  filter(.metric == "accuracy") %>%
+  ggplot(aes(x = id, y = .estimate)) +
+  geom_point(size = 3, color = "steelblue") +
+  geom_hline(yintercept = mean(knn_cv %>%
+                                  collect_metrics(summarize = FALSE) %>%
+                                  filter(.metric == "accuracy") %>%
+                                  pull(.estimate)),
+             linetype = "dashed", color = "red") +
+  labs(title = "KNN Accuracy Across 10-Fold Cross-Validation",
+       subtitle = "3 Species Classification (k=5)",
+       x = "Fold",
+       y = "Accuracy") +
+  theme_minimal() +
+  coord_flip() +
+  ylim(0.5, 0.85)
+
 ```
